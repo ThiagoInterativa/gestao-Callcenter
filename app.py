@@ -186,9 +186,11 @@ with col2:
 with col3:
     st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
+
 # ==============================
 # 📊 HISTÓRICO (OBRIGATÓRIO)
 # ==============================
+
 df_hist = pd.DataFrame(st.session_state.historico)
 
 if df_hist.empty:
@@ -196,21 +198,13 @@ if df_hist.empty:
     st.stop()
 
 # ==============================
-# 📊 HISTÓRICO (BASE LIMPA)
+# 🧹 LIMPEZA SEGURA
 # ==============================
 
-df_hist = pd.DataFrame(st.session_state.historico)
-
-if df_hist.empty:
-    st.info("Aguardando dados...")
-    st.stop()
-
-# garante datetime correto
 df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
 df_hist = df_hist.dropna(subset=["time"])
 df_hist = df_hist.sort_values("time")
 
-# garante colunas fixas
 for col in ["livres", "ocupados", "pausa"]:
     if col not in df_hist.columns:
         df_hist[col] = 0
@@ -220,47 +214,41 @@ df_hist[["livres", "ocupados", "pausa"]] = df_hist[
 ].fillna(0).astype(int)
 
 # ==============================
-# 🔥 CORREÇÃO PRINCIPAL (CONTINUIDADE REAL)
+# 🔥 REGRA: esconder pausa se não existir
 # ==============================
-# evita “quebra para zero” entre estados
 
-df_hist["livres"] = df_hist["livres"].replace(0, None).ffill().fillna(0)
-df_hist["ocupados"] = df_hist["ocupados"].replace(0, None).ffill().fillna(0)
-df_hist["pausa"] = df_hist["pausa"].replace(0, None).ffill().fillna(0)
+series = ["livres", "ocupados"]
 
-df_hist[["livres", "ocupados", "pausa"]] = df_hist[
-    ["livres", "ocupados", "pausa"]
-].astype(int)
+if df_hist["pausa"].sum() > 0:
+    series.append("pausa")
 
 # ==============================
-# 📈 GRÁFICO CONTÍNUO
+# 📈 GRÁFICO
 # ==============================
 
 st.subheader("📈 Atendimentos ao longo do tempo")
 
 df_melt = df_hist.melt(
     id_vars=["time"],
-    value_vars=["livres", "ocupados", "pausa"],
+    value_vars=series,
     var_name="Status",
     value_name="Quantidade"
 )
 
+color_map = {
+    "livres": "#22c55e",
+    "ocupados": "#ef4444",
+    "pausa": "#eab308"
+}
+
 color_scale = alt.Scale(
-    domain=["livres", "ocupados", "pausa"],
-    range=["#22c55e", "#ef4444", "#eab308"]
+    domain=list(color_map.keys()),
+    range=list(color_map.values())
 )
 
 chart = alt.Chart(df_melt).mark_line(point=True).encode(
-    x=alt.X(
-        "time:T",
-        axis=alt.Axis(format="%H:%M"),
-        title="Horário (Brasil)"
-    ),
-    y=alt.Y(
-        "Quantidade:Q",
-        scale=alt.Scale(domain=[0, 9]),
-        axis=alt.Axis(tickMinStep=1)
-    ),
+    x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
+    y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
     color=alt.Color("Status:N", scale=color_scale),
     tooltip=["time:T", "Status", "Quantidade"]
 ).properties(height=400)
