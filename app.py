@@ -107,18 +107,15 @@ def get_agentes(session):
     st.subheader("🔎 DEBUG LINHAS")
 
     for linha in tabela.find_all("tr"):
-        cols = linha.find_all("td")
+    cols = linha.find_all("td")
 
-        if len(cols) >= 2:
-
-            nome = cols[0].get_text(" ", strip=True)
-
-            linha_texto = remover_acentos(
-                linha.get_text(" ", strip=True).lower()
+    if len(cols) >= 1:
+        valores = [c.get_text(" ", strip=True) for c in cols]
+        
             )
 
             # DEBUG linha completa
-            st.write("➡️ LINHA:", linha_texto)
+            st.write("COLUNAS:", valores)  # 👈 DEBUG REAL
 
             # Limpeza
             linha_texto = linha_texto.replace("ultima chamada", "")
