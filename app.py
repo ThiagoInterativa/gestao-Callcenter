@@ -198,48 +198,67 @@ if df_hist.empty:
 # ==============================
 # 📈 GRÁFICO
 # ==============================
+
+
 st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
 
     df_hist_clean = df_hist.copy()
+
+    # garante datetime
     df_hist_clean["time"] = pd.to_datetime(df_hist_clean["time"], errors="coerce")
     df_hist_clean = df_hist_clean.dropna(subset=["time"])
     df_hist_clean = df_hist_clean.sort_values("time")
 
+    # garante colunas fixas
     for col in ["livres", "ocupados", "pausa"]:
         if col not in df_hist_clean.columns:
             df_hist_clean[col] = 0
 
     df_hist_clean[["livres", "ocupados", "pausa"]] = df_hist_clean[
         ["livres", "ocupados", "pausa"]
-    ].fillna(0).astype(int)
+    ].astype(int)
 
-    df_melt = df_hist_clean.melt(
+    # ==============================
+    # 🔥 CONVERTE EM SÉRIE CONTÍNUA
+    # ==============================
+    df_plot = df_hist_clean.set_index("time")
+
+    # força continuidade visual (ESSENCIAL)
+    df_plot = df_plot.asfreq("30S", method=None)
+
+    # volta para dataframe
+    df_plot = df_plot.reset_index()
+
+    # melt para Altair
+    df_melt = df_plot.melt(
         id_vars=["time"],
         value_vars=["livres", "ocupados", "pausa"],
         var_name="Status",
         value_name="Quantidade"
     )
 
+    # cores
     color_scale = alt.Scale(
         domain=["livres", "ocupados", "pausa"],
         range=["#22c55e", "#ef4444", "#eab308"]
     )
 
+    # gráfico
     chart = alt.Chart(df_melt).mark_line(point=True).encode(
         x=alt.X("time:T", axis=alt.Axis(format="%H:%M")),
-         y=alt.Y(
-        "Quantidade:Q",
-        scale=alt.Scale(domain=[0, 9]),
-        axis=alt.Axis(tickMinStep=1)
-    ),
-
-    color=alt.Color("Status:N", scale=color_scale)
+        y=alt.Y(
+            "Quantidade:Q",
+            scale=alt.Scale(domain=[0, 9]),
+            axis=alt.Axis(tickMinStep=1)
+        ),
+        color=alt.Color("Status:N", scale=color_scale),
+        tooltip=["time:T", "Status", "Quantidade"]
     ).properties(height=400)
 
     st.altair_chart(chart, use_container_width=True)
-
+    
 # ==============================
 # TABELA
 # ==============================
