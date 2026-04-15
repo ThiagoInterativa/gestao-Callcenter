@@ -112,8 +112,7 @@ def get_agentes(session):
     if len(cols) >= 1:
         valores = [c.get_text(" ", strip=True) for c in cols]
         
-            )
-
+            
             # DEBUG linha completa
             st.write("COLUNAS:", valores)  # 👈 DEBUG REAL
 
