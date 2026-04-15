@@ -163,14 +163,14 @@ pausa = sum(1 for _, s in agentes if s == "pausa")
 agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
 # salvar histórico
-st.session_state.historico.append({
+registro = {
     "time": agora_br,
-    "livres": livres,
-    "ocupados": ocupados,
-    "pausa": pausa
-})
+    "livres": int(livres),
+    "ocupados": int(ocupados),
+    "pausa": int(pausa)
+}
 
-df_hist = pd.DataFrame(st.session_state.historico)
+st.session_state.historico.append(registro)
 
 # ==============================
 # CARDS
