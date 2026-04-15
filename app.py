@@ -79,16 +79,32 @@ def login():
 
     return session if res.url != LOGIN_URL else None
 
-# ==============================
-# PEGAR AGENTES
-# ==============================
 
+# ==============================
+# PEGAR AGENTES (COM DEBUG)
+# ==============================
 def get_agentes(session):
     r = session.get(MONITOR_URL)
+
+    # ==========================
+    # 🔍 PASSO 1 - VER HTML
+    # ==========================
+    st.subheader("🔎 DEBUG HTML (primeiros 3000 caracteres)")
+    st.text(r.text[:3000])
+
     soup = BeautifulSoup(r.text, "html.parser")
 
     tabela = soup.find("table")
     agentes = []
+
+    if not tabela:
+        st.error("Tabela não encontrada!")
+        return []
+
+    # ==========================
+    # 🔍 PASSO 2 - DEBUG LINHAS
+    # ==========================
+    st.subheader("🔎 DEBUG LINHAS")
 
     for linha in tabela.find_all("tr"):
         cols = linha.find_all("td")
@@ -97,18 +113,26 @@ def get_agentes(session):
 
             nome = cols[0].get_text(" ", strip=True)
 
-            # 🔥 pega TODOS os textos da linha (não depende da coluna)
-            linha_texto = remover_acentos(linha.get_text(" ", strip=True).lower())
+            linha_texto = remover_acentos(
+                linha.get_text(" ", strip=True).lower()
+            )
 
-            # DEBUG (remova depois)
-            # st.write(linha_texto)
+            # DEBUG linha completa
+            st.write("➡️ LINHA:", linha_texto)
 
+            # Limpeza
+            linha_texto = linha_texto.replace("ultima chamada", "")
+
+            # Classificação
             if "pausa" in linha_texto:
                 status = "pausa"
-            elif any(x in linha_texto for x in ["ocupado", "falando", "chamada", "busy"]):
+
+            elif any(x in linha_texto for x in ["ocupado", "falando", "em chamada"]):
                 status = "ocupado"
-            elif any(x in linha_texto for x in ["livre", "disponivel", "online", "ready"]):
+
+            elif any(x in linha_texto for x in ["livre", "disponivel", "online"]):
                 status = "livre"
+
             else:
                 status = "offline"
 
@@ -126,9 +150,13 @@ if "historico" not in st.session_state:
 # ==============================
 # APP
 # ==============================
-st.markdown('<div class="title">📡 NOC CALL CENTER</div>', unsafe_allow_html=True)
+st.title("🧪 DEBUG CALL CENTER")
 
-session = login()
+# sessão persistente
+if "session" not in st.session_state:
+    st.session_state.session = login()
+
+session = st.session_state.session
 
 if not session:
     st.error("Erro no login")
@@ -143,6 +171,12 @@ livres = sum(1 for _, s in agentes if s == "livre")
 ocupados = sum(1 for _, s in agentes if s == "ocupado")
 pausa = sum(1 for _, s in agentes if s == "pausa")
 
+# DEBUG contagem
+st.subheader("🔢 DEBUG CONTAGEM")
+st.write("Livres:", livres)
+st.write("Ocupados:", ocupados)
+st.write("Pausa:", pausa)
+
 # salvar histórico
 st.session_state.historico.append({
     "time": datetime.now(),
@@ -153,23 +187,10 @@ st.session_state.historico.append({
 df_hist = pd.DataFrame(st.session_state.historico)
 
 # ==============================
-# CARDS (NOC)
-# ==============================
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown(f'<div class="big-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
-
-with col2:
-    st.markdown(f'<div class="big-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
-
-# ==============================
 # GRÁFICO
 # ==============================
-st.subheader("📈 Atendimentos ao longo do tempo")
+st.subheader("📈 Gráfico")
+
 if len(df_hist) > 1:
     st.line_chart(df_hist.set_index("time"))
 
