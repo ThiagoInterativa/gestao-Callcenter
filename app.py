@@ -197,8 +197,8 @@ if len(df_hist) > 1:
     df_melt = df_hist.melt("time", var_name="Status", value_name="Quantidade")
 
     # 🔥 Formata horário brasileiro (24h)
-   df_melt["time"] = pd.to_datetime(df_melt["time"])
-   df_melt["time_str"] = df_melt["time"].dt.strftime("%H:%M")
+    df_melt["time"] = pd.to_datetime(df_melt["time"])
+    df_melt["time_str"] = df_melt["time"].dt.strftime("%H:%M")
 
     # 🔥 Define cores fixas
     color_scale = alt.Scale(
