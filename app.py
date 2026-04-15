@@ -81,71 +81,50 @@ def login():
 
 
 # ==============================
-# PEGAR AGENTES (COM DEBUG)
+# PEGAR AGENTES (CORRIGIDO)
 # ==============================
 def get_agentes(session):
     r = session.get(MONITOR_URL)
-
-    # ==========================
-    # 🔍 PASSO 1 - VER HTML
-    # ==========================
-    st.subheader("🔎 DEBUG HTML (primeiros 3000 caracteres)")
-    st.text(r.text[:3000])
-
     soup = BeautifulSoup(r.text, "html.parser")
 
     tabela = soup.find("table")
     agentes = []
 
     if not tabela:
-        st.error("Tabela não encontrada!")
         return []
-
-    # ==========================
-    # 🔍 PASSO 2 - DEBUG LINHAS + COLUNAS
-    # ==========================
-    st.subheader("🔎 DEBUG LINHAS / COLUNAS")
 
     for linha in tabela.find_all("tr"):
         cols = linha.find_all("td")
 
-        if len(cols) >= 1:
-            # 🔥 pega todas as colunas
-            valores = [c.get_text(" ", strip=True) for c in cols]
+        if len(cols) >= 3:
 
-            # DEBUG PRINCIPAL (ESSA É A MAIS IMPORTANTE)
-            st.write("COLUNAS:", valores)
+            # Nome limpo
+            nome = cols[0].get_text(" ", strip=True).split("Última chamada")[0].strip()
 
-            # segurança
-            nome = valores[0] if len(valores) > 0 else ""
+            # 🔥 STATUS CORRETO (COLUNA 2)
+            status_txt = remover_acentos(cols[2].get_text(strip=True).lower())
 
-            # junta tudo pra análise
-            linha_texto = remover_acentos(" ".join(valores).lower())
-
-            # limpa ruído
-            linha_texto = linha_texto.replace("ultima chamada", "")
-
-            # ==========================
-            # 🔍 CLASSIFICAÇÃO (TEMPORÁRIA)
-            # ==========================
-            if "pausa" in linha_texto:
+            # Classificação
+            if "pausa" in status_txt:
                 status = "pausa"
 
-            elif any(x in linha_texto for x in ["ocupado", "falando", "em chamada"]):
+            elif "ocupado" in status_txt or "falando" in status_txt:
                 status = "ocupado"
 
-            elif any(x in linha_texto for x in ["livre", "disponivel", "online"]):
+            elif "livre" in status_txt:
                 status = "livre"
+
+            elif "indisponivel" in status_txt:
+                status = "offline"
 
             else:
                 status = "offline"
 
-            # adiciona
             if nome:
                 agentes.append((nome, status))
 
     return agentes
-    
+
 # ==============================
 # HISTÓRICO
 # ==============================
@@ -155,7 +134,7 @@ if "historico" not in st.session_state:
 # ==============================
 # APP
 # ==============================
-st.title("🧪 DEBUG CALL CENTER")
+st.markdown('<div class="title">📡 NOC CALL CENTER</div>', unsafe_allow_html=True)
 
 # sessão persistente
 if "session" not in st.session_state:
@@ -176,12 +155,6 @@ livres = sum(1 for _, s in agentes if s == "livre")
 ocupados = sum(1 for _, s in agentes if s == "ocupado")
 pausa = sum(1 for _, s in agentes if s == "pausa")
 
-# DEBUG contagem
-st.subheader("🔢 DEBUG CONTAGEM")
-st.write("Livres:", livres)
-st.write("Ocupados:", ocupados)
-st.write("Pausa:", pausa)
-
 # salvar histórico
 st.session_state.historico.append({
     "time": datetime.now(),
@@ -192,12 +165,27 @@ st.session_state.historico.append({
 df_hist = pd.DataFrame(st.session_state.historico)
 
 # ==============================
-# GRÁFICO
+# CARDS
 # ==============================
-st.subheader("📈 Gráfico")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown(f'<div class="big-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
+
+with col2:
+    st.markdown(f'<div class="big-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
+
+with col3:
+    st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
+
+# ==============================
+# GRÁFICO (CORRIGIDO)
+# ==============================
+st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
-    st.line_chart(df_hist.set_index("time"))
+    df_plot = df_hist.set_index("time")[["livres", "ocupados"]]
+    st.line_chart(df_plot)
 
 # ==============================
 # TABELA
