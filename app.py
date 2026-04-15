@@ -159,7 +159,7 @@ pausa = sum(1 for _, s in agentes if s == "pausa")
 # ==============================
 # 🕒 HORÁRIO Brasil SP
 # ==============================
-agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
+agora_br = datetime.now() - timedelta(hours=3)
 
 # salvar histórico
 st.session_state.historico.append({
