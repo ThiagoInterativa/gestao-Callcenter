@@ -102,24 +102,32 @@ def get_agentes(session):
         return []
 
     # ==========================
-    # 🔍 PASSO 2 - DEBUG LINHAS
+    # 🔍 PASSO 2 - DEBUG LINHAS + COLUNAS
     # ==========================
-    st.subheader("🔎 DEBUG LINHAS")
+    st.subheader("🔎 DEBUG LINHAS / COLUNAS")
 
     for linha in tabela.find_all("tr"):
-    cols = linha.find_all("td")
+        cols = linha.find_all("td")
 
-    if len(cols) >= 1:
-        valores = [c.get_text(" ", strip=True) for c in cols]
-        
-            
-            # DEBUG linha completa
-            st.write("COLUNAS:", valores)  # 👈 DEBUG REAL
+        if len(cols) >= 1:
+            # 🔥 pega todas as colunas
+            valores = [c.get_text(" ", strip=True) for c in cols]
 
-            # Limpeza
+            # DEBUG PRINCIPAL (ESSA É A MAIS IMPORTANTE)
+            st.write("COLUNAS:", valores)
+
+            # segurança
+            nome = valores[0] if len(valores) > 0 else ""
+
+            # junta tudo pra análise
+            linha_texto = remover_acentos(" ".join(valores).lower())
+
+            # limpa ruído
             linha_texto = linha_texto.replace("ultima chamada", "")
 
-            # Classificação
+            # ==========================
+            # 🔍 CLASSIFICAÇÃO (TEMPORÁRIA)
+            # ==========================
             if "pausa" in linha_texto:
                 status = "pausa"
 
@@ -132,11 +140,12 @@ def get_agentes(session):
             else:
                 status = "offline"
 
+            # adiciona
             if nome:
                 agentes.append((nome, status))
 
     return agentes
-
+    
 # ==============================
 # HISTÓRICO
 # ==============================
