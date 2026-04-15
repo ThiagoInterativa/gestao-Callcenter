@@ -186,7 +186,6 @@ with col2:
 with col3:
     st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
-
 # ==============================
 # 📈 GRÁFICO
 # ==============================
@@ -194,15 +193,24 @@ st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
 
+    # 🔥 garante cópia limpa
+    df_hist_clean = df_hist.copy()
+
+    # 🔥 força conversão segura (erros viram NaT)
+    df_hist_clean["time"] = pd.to_datetime(
+        df_hist_clean["time"],
+        errors="coerce"
+    )
+
+    # 🔥 remove linhas inválidas (evita crash)
+    df_hist_clean = df_hist_clean.dropna(subset=["time"])
+
     # formato longo
-    df_melt = df_hist.melt(
+    df_melt = df_hist_clean.melt(
         id_vars=["time"],
         var_name="Status",
         value_name="Quantidade"
     )
-
-    # garante datetime real
-    df_melt["time"] = pd.to_datetime(df_melt["time"])
 
     # cores fixas
     color_scale = alt.Scale(
@@ -215,7 +223,7 @@ if len(df_hist) > 1:
         x=alt.X(
             "time:T",
             title="Horário (Brasil)",
-            axis=alt.Axis(format="%H:%M")  # 🔥 mostra só hora/minuto
+            axis=alt.Axis(format="%H:%M")
         ),
         y=alt.Y("Quantidade:Q"),
         color=alt.Color("Status:N", scale=color_scale),
