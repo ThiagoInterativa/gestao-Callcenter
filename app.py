@@ -187,6 +187,7 @@ with col3:
     st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
 
+
 # ==============================
 # 📊 HISTÓRICO (OBRIGATÓRIO)
 # ==============================
@@ -223,12 +224,21 @@ if df_hist["pausa"].sum() > 0:
     series.append("pausa")
 
 # ==============================
+# 🚨 NOVO AJUSTE: remover zeros do gráfico (SEM MEXER NO DADO REAL)
+# ==============================
+
+df_plot = df_hist.copy()
+
+for col in ["livres", "ocupados"]:
+    df_plot[col] = df_plot[col].replace(0, None)  # 🔥 remove só do gráfico
+
+# ==============================
 # 📈 GRÁFICO
 # ==============================
 
 st.subheader("📈 Atendimentos ao longo do tempo")
 
-df_melt = df_hist.melt(
+df_melt = df_plot.melt(
     id_vars=["time"],
     value_vars=series,
     var_name="Status",
@@ -248,7 +258,11 @@ color_scale = alt.Scale(
 
 chart = alt.Chart(df_melt).mark_line(point=True).encode(
     x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
-    y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
+    y=alt.Y(
+        "Quantidade:Q",
+        scale=alt.Scale(domain=[0, 9]),
+        axis=alt.Axis(tickMinStep=1)
+    ),
     color=alt.Color("Status:N", scale=color_scale),
     tooltip=["time:T", "Status", "Quantidade"]
 ).properties(height=400)
