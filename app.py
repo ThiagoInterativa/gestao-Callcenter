@@ -194,24 +194,56 @@ st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
 
+    # ==========================
+    # 🧹 LIMPEZA DO HISTÓRICO
+    # ==========================
     df_hist_clean = df_hist.copy()
-    df_hist_clean["time"] = pd.to_datetime(df_hist_clean["time"], errors="coerce")
+
+    # garante datetime válido
+    df_hist_clean["time"] = pd.to_datetime(
+        df_hist_clean["time"],
+        errors="coerce"
+    )
+
+    # remove linhas inválidas
     df_hist_clean = df_hist_clean.dropna(subset=["time"])
 
-    # 🔥 IMPORTANTE: manter ordem temporal correta
+    # ordena tempo (essencial para gráfico correto)
     df_hist_clean = df_hist_clean.sort_values("time")
 
+    # ==========================
+    # 🔥 GARANTIA DE COLUNAS FIXAS
+    # ==========================
+    for col in ["livres", "ocupados", "pausa"]:
+        if col not in df_hist_clean.columns:
+            df_hist_clean[col] = 0
+
+    # garante tipo numérico
+    df_hist_clean[["livres", "ocupados", "pausa"]] = df_hist_clean[
+        ["livres", "ocupados", "pausa"]
+    ].fillna(0).astype(int)
+
+    # ==========================
+    # 📊 FORMATO LONGO (ALTair)
+    # ==========================
     df_melt = df_hist_clean.melt(
         id_vars=["time"],
+        value_vars=["livres", "ocupados", "pausa"],  # 🔥 força consistência
         var_name="Status",
         value_name="Quantidade"
     )
 
+    # ==========================
+    # 🎨 CORES FIXAS
+    # ==========================
     color_scale = alt.Scale(
         domain=["livres", "ocupados", "pausa"],
         range=["#22c55e", "#ef4444", "#eab308"]
     )
 
+    # ==========================
+    # 📈 GRÁFICO FINAL
+    # ==========================
     chart = alt.Chart(df_melt).mark_line(point=True).encode(
         x=alt.X(
             "time:T",
@@ -220,7 +252,11 @@ if len(df_hist) > 1:
         ),
         y=alt.Y("Quantidade:Q"),
         color=alt.Color("Status:N", scale=color_scale),
-        tooltip=["time:T", "Status", "Quantidade"]
+        tooltip=[
+            alt.Tooltip("time:T", title="Hora"),
+            "Status",
+            "Quantidade"
+        ]
     ).properties(height=400)
 
     st.altair_chart(chart, use_container_width=True)
