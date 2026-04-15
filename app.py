@@ -134,7 +134,7 @@ if "historico" not in st.session_state:
 # ==============================
 # APP
 # ==============================
-st.markdown('<div class="title">📡 NOC CALL CENTER</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">📡 Gestor de call center - Intercom</div>', unsafe_allow_html=True)
 
 # sessão persistente
 if "session" not in st.session_state:
@@ -155,11 +155,17 @@ livres = sum(1 for _, s in agentes if s == "livre")
 ocupados = sum(1 for _, s in agentes if s == "ocupado")
 pausa = sum(1 for _, s in agentes if s == "pausa")
 
+# ==============================
+# 🕒 HORÁRIO Brasil SP
+# ==============================
+agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
 # salvar histórico
 st.session_state.historico.append({
     "time": datetime.now(),
     "livres": livres,
     "ocupados": ocupados
+    "pausa": pausa
 })
 
 df_hist = pd.DataFrame(st.session_state.historico)
@@ -184,7 +190,7 @@ with col3:
 st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
-    df_plot = df_hist.set_index("time")[["livres", "ocupados"]]
+    df_plot = df_hist.set_index("time")[["livres", "ocupados", "pausa"]]
     st.line_chart(df_plot)
 
 # ==============================
