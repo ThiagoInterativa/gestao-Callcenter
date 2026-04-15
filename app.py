@@ -162,10 +162,10 @@ agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
 # salvar histórico
 st.session_state.historico.append({
-    "time": datetime.now(),
+    "time": agora_br,   # 🔥 agora usa horário do Brasil
     "livres": livres,
-    "ocupados": ocupados
-    "pausa": pausa
+    "ocupados": ocupados,
+    "pausa": pausa      # 🔥 NOVO: adiciona pausa no histórico
 })
 
 df_hist = pd.DataFrame(st.session_state.historico)
