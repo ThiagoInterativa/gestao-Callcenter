@@ -196,65 +196,77 @@ if df_hist.empty:
     st.stop()
 
 # ==============================
-# 📈 GRÁFICO
+# 📊 HISTÓRICO (BASE LIMPA)
 # ==============================
 
+df_hist = pd.DataFrame(st.session_state.historico)
 
+if df_hist.empty:
+    st.info("Aguardando dados...")
+    st.stop()
+
+# garante datetime correto
+df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
+df_hist = df_hist.dropna(subset=["time"])
+df_hist = df_hist.sort_values("time")
+
+# garante colunas fixas
+for col in ["livres", "ocupados", "pausa"]:
+    if col not in df_hist.columns:
+        df_hist[col] = 0
+
+df_hist[["livres", "ocupados", "pausa"]] = df_hist[
+    ["livres", "ocupados", "pausa"]
+].fillna(0).astype(int)
+
+# ==============================
+# 🔥 CORREÇÃO PRINCIPAL (CONTINUIDADE REAL)
+# ==============================
+# evita “quebra para zero” entre estados
+
+df_hist["livres"] = df_hist["livres"].replace(0, None).ffill().fillna(0)
+df_hist["ocupados"] = df_hist["ocupados"].replace(0, None).ffill().fillna(0)
+df_hist["pausa"] = df_hist["pausa"].replace(0, None).ffill().fillna(0)
+
+df_hist[["livres", "ocupados", "pausa"]] = df_hist[
+    ["livres", "ocupados", "pausa"]
+].astype(int)
+
+# ==============================
+# 📈 GRÁFICO CONTÍNUO
+# ==============================
 
 st.subheader("📈 Atendimentos ao longo do tempo")
 
-if len(df_hist) > 1:
+df_melt = df_hist.melt(
+    id_vars=["time"],
+    value_vars=["livres", "ocupados", "pausa"],
+    var_name="Status",
+    value_name="Quantidade"
+)
 
-    df_hist_clean = df_hist.copy()
+color_scale = alt.Scale(
+    domain=["livres", "ocupados", "pausa"],
+    range=["#22c55e", "#ef4444", "#eab308"]
+)
 
-    # garante datetime válido
-    df_hist_clean["time"] = pd.to_datetime(df_hist_clean["time"], errors="coerce")
-    df_hist_clean = df_hist_clean.dropna(subset=["time"])
-    df_hist_clean = df_hist_clean.sort_values("time")
+chart = alt.Chart(df_melt).mark_line(point=True).encode(
+    x=alt.X(
+        "time:T",
+        axis=alt.Axis(format="%H:%M"),
+        title="Horário (Brasil)"
+    ),
+    y=alt.Y(
+        "Quantidade:Q",
+        scale=alt.Scale(domain=[0, 9]),
+        axis=alt.Axis(tickMinStep=1)
+    ),
+    color=alt.Color("Status:N", scale=color_scale),
+    tooltip=["time:T", "Status", "Quantidade"]
+).properties(height=400)
 
-    # garante colunas fixas
-    for col in ["livres", "ocupados", "pausa"]:
-        if col not in df_hist_clean.columns:
-            df_hist_clean[col] = 0
+st.altair_chart(chart, use_container_width=True)
 
-    df_hist_clean[["livres", "ocupados", "pausa"]] = df_hist_clean[
-        ["livres", "ocupados", "pausa"]
-    ].fillna(0).astype(int)
-
-    # ==============================
-    # 🔥 IMPORTANTE: NÃO usar asfreq
-    # ==============================
-
-    # MELHOR ESTRATÉGIA: manter pontos reais
-    df_melt = df_hist_clean.melt(
-        id_vars=["time"],
-        value_vars=["livres", "ocupados", "pausa"],
-        var_name="Status",
-        value_name="Quantidade"
-    )
-
-    color_scale = alt.Scale(
-        domain=["livres", "ocupados", "pausa"],
-        range=["#22c55e", "#ef4444", "#eab308"]
-    )
-
-    chart = alt.Chart(df_melt).mark_line(point=True).encode(
-        x=alt.X(
-            "time:T",
-            axis=alt.Axis(format="%H:%M"),
-            title="Horário (Brasil)"
-        ),
-        y=alt.Y(
-            "Quantidade:Q",
-            scale=alt.Scale(domain=[0, 9]),
-            axis=alt.Axis(tickMinStep=1)
-        ),
-        color=alt.Color("Status:N", scale=color_scale),
-        tooltip=["time:T", "Status", "Quantidade"]
-    ).properties(height=400)
-
-    st.altair_chart(chart, use_container_width=True)
-    
 # ==============================
 # TABELA
 # ==============================
