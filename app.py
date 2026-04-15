@@ -186,37 +186,48 @@ with col2:
 with col3:
     st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
+
 # ==============================
-# Grafico
+# 📈 GRÁFICO
 # ==============================
 st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
 
-    # 🔥 Converte para formato longo (necessário pro Altair)
-    df_melt = df_hist.melt("time", var_name="Status", value_name="Quantidade")
-
-    # 🔥 Formata horário brasileiro (24h)
-    df_melt["time"] = pd.to_datetime(df_melt["time"])
-    df_melt["time_str"] = df_melt["time"].dt.strftime("%H:%M")
-
-    # 🔥 Define cores fixas
-    color_scale = alt.Scale(
-        domain=["livres", "ocupados", "pausa"],
-        range=["#22c55e", "#ef4444", "#eab308"]  # verde, vermelho, amarelo
+    # formato longo
+    df_melt = df_hist.melt(
+        id_vars=["time"],
+        var_name="Status",
+        value_name="Quantidade"
     )
 
-    # 🔥 Cria gráfico
+    # garante datetime real
+    df_melt["time"] = pd.to_datetime(df_melt["time"])
+
+    # cores fixas
+    color_scale = alt.Scale(
+        domain=["livres", "ocupados", "pausa"],
+        range=["#22c55e", "#ef4444", "#eab308"]
+    )
+
+    # gráfico correto
     chart = alt.Chart(df_melt).mark_line(point=True).encode(
-        x=alt.X("time_str:N", title="Horário (Brasil)"),
+        x=alt.X(
+            "time:T",
+            title="Horário (Brasil)",
+            axis=alt.Axis(format="%H:%M")  # 🔥 mostra só hora/minuto
+        ),
         y=alt.Y("Quantidade:Q"),
         color=alt.Color("Status:N", scale=color_scale),
-        tooltip=["time_str", "Status", "Quantidade"]
+        tooltip=[
+            alt.Tooltip("time:T", title="Hora"),
+            "Status",
+            "Quantidade"
+        ]
     ).properties(height=400)
 
     st.altair_chart(chart, use_container_width=True)
-
-
+    
 # ==============================
 # TABELA
 # ==============================
