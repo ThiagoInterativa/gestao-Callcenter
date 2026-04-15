@@ -229,8 +229,13 @@ if len(df_hist) > 1:
 
     chart = alt.Chart(df_melt).mark_line(point=True).encode(
         x=alt.X("time:T", axis=alt.Axis(format="%H:%M")),
-        y=alt.Y("Quantidade:Q"),
-        color=alt.Color("Status:N", scale=color_scale)
+         y=alt.Y(
+        "Quantidade:Q",
+        scale=alt.Scale(domain=[0, 9]),
+        axis=alt.Axis(tickMinStep=1)
+    ),
+
+    color=alt.Color("Status:N", scale=color_scale)
     ).properties(height=400)
 
     st.altair_chart(chart, use_container_width=True)
