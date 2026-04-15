@@ -82,6 +82,7 @@ def login():
 # ==============================
 # PEGAR AGENTES
 # ==============================
+
 def get_agentes(session):
     r = session.get(MONITOR_URL)
     soup = BeautifulSoup(r.text, "html.parser")
@@ -89,23 +90,30 @@ def get_agentes(session):
     tabela = soup.find("table")
     agentes = []
 
-    for linha in tabela.find_all("tr")[1:]:
+    for linha in tabela.find_all("tr"):
         cols = linha.find_all("td")
 
         if len(cols) >= 2:
-            nome = cols[0].text.strip()
-            status_txt = remover_acentos(cols[1].text.lower())
 
-            if "pausa" in status_txt:
+            nome = cols[0].get_text(" ", strip=True)
+
+            # 🔥 pega TODOS os textos da linha (não depende da coluna)
+            linha_texto = remover_acentos(linha.get_text(" ", strip=True).lower())
+
+            # DEBUG (remova depois)
+            # st.write(linha_texto)
+
+            if "pausa" in linha_texto:
                 status = "pausa"
-            elif "ocupado" in status_txt or "falando" in status_txt:
+            elif any(x in linha_texto for x in ["ocupado", "falando", "chamada", "busy"]):
                 status = "ocupado"
-            elif "livre" in status_txt or "disponivel" in status_txt:
+            elif any(x in linha_texto for x in ["livre", "disponivel", "online", "ready"]):
                 status = "livre"
             else:
                 status = "offline"
 
-            agentes.append((nome, status))
+            if nome:
+                agentes.append((nome, status))
 
     return agentes
 
