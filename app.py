@@ -200,13 +200,14 @@ if df_hist.empty:
 # ==============================
 
 
+
 st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
 
     df_hist_clean = df_hist.copy()
 
-    # garante datetime
+    # garante datetime válido
     df_hist_clean["time"] = pd.to_datetime(df_hist_clean["time"], errors="coerce")
     df_hist_clean = df_hist_clean.dropna(subset=["time"])
     df_hist_clean = df_hist_clean.sort_values("time")
@@ -218,36 +219,31 @@ if len(df_hist) > 1:
 
     df_hist_clean[["livres", "ocupados", "pausa"]] = df_hist_clean[
         ["livres", "ocupados", "pausa"]
-    ].astype(int)
+    ].fillna(0).astype(int)
 
     # ==============================
-    # 🔥 CONVERTE EM SÉRIE CONTÍNUA
+    # 🔥 IMPORTANTE: NÃO usar asfreq
     # ==============================
-    df_plot = df_hist_clean.set_index("time")
 
-    # força continuidade visual (ESSENCIAL)
-    df_plot = df_plot.asfreq("30S", method=None)
-
-    # volta para dataframe
-    df_plot = df_plot.reset_index()
-
-    # melt para Altair
-    df_melt = df_plot.melt(
+    # MELHOR ESTRATÉGIA: manter pontos reais
+    df_melt = df_hist_clean.melt(
         id_vars=["time"],
         value_vars=["livres", "ocupados", "pausa"],
         var_name="Status",
         value_name="Quantidade"
     )
 
-    # cores
     color_scale = alt.Scale(
         domain=["livres", "ocupados", "pausa"],
         range=["#22c55e", "#ef4444", "#eab308"]
     )
 
-    # gráfico
     chart = alt.Chart(df_melt).mark_line(point=True).encode(
-        x=alt.X("time:T", axis=alt.Axis(format="%H:%M")),
+        x=alt.X(
+            "time:T",
+            axis=alt.Axis(format="%H:%M"),
+            title="Horário (Brasil)"
+        ),
         y=alt.Y(
             "Quantidade:Q",
             scale=alt.Scale(domain=[0, 9]),
