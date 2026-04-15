@@ -5,8 +5,8 @@ import pandas as pd
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from datetime import timedelta
 import unicodedata
+import altair as alt  
 
 # ==============================
 # CONFIG
@@ -158,16 +158,16 @@ ocupados = sum(1 for _, s in agentes if s == "ocupado")
 pausa = sum(1 for _, s in agentes if s == "pausa")
 
 # ==============================
-# 🕒 HORÁRIO Brasil SP
+# 🕒 Horario  SP
 # ==============================
-agora_br = datetime.now() - timedelta(hours=3)
+agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
 # salvar histórico
 st.session_state.historico.append({
-    "time": agora_br,   # 🔥 agora usa horário do Brasil
+    "time": agora_br,
     "livres": livres,
     "ocupados": ocupados,
-    "pausa": pausa      # 🔥 NOVO: adiciona pausa no histórico
+    "pausa": pausa
 })
 
 df_hist = pd.DataFrame(st.session_state.historico)
@@ -187,13 +187,34 @@ with col3:
     st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
 # ==============================
-# GRÁFICO (CORRIGIDO)
+# Grafico
 # ==============================
 st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
-    df_plot = df_hist.set_index("time")[["livres", "ocupados", "pausa"]]
-    st.line_chart(df_plot)
+
+    # 🔥 Converte para formato longo (necessário pro Altair)
+    df_melt = df_hist.melt("time", var_name="Status", value_name="Quantidade")
+
+    # 🔥 Formata horário brasileiro (24h)
+    df_melt["time_str"] = df_melt["time"].dt.strftime("%H:%M")
+
+    # 🔥 Define cores fixas
+    color_scale = alt.Scale(
+        domain=["livres", "ocupados", "pausa"],
+        range=["#22c55e", "#ef4444", "#eab308"]  # verde, vermelho, amarelo
+    )
+
+    # 🔥 Cria gráfico
+    chart = alt.Chart(df_melt).mark_line(point=True).encode(
+        x=alt.X("time_str:N", title="Horário (Brasil)"),
+        y=alt.Y("Quantidade:Q"),
+        color=alt.Color("Status:N", scale=color_scale),
+        tooltip=["time_str", "Status", "Quantidade"]
+    ).properties(height=400)
+
+    st.altair_chart(chart, use_container_width=True)
+
 
 # ==============================
 # TABELA
@@ -204,7 +225,7 @@ df = pd.DataFrame(agentes, columns=["Nome", "Status"])
 st.dataframe(df, use_container_width=True)
 
 # ==============================
-# AUTO REFRESH
+#  auto atualiza
 # ==============================
 time.sleep(REFRESH)
 st.rerun()
