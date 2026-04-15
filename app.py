@@ -189,49 +189,38 @@ with col3:
 # ==============================
 # 📈 GRÁFICO
 # ==============================
+
 st.subheader("📈 Atendimentos ao longo do tempo")
 
 if len(df_hist) > 1:
 
-    # 🔥 garante cópia limpa
     df_hist_clean = df_hist.copy()
-
-    # 🔥 força conversão segura (erros viram NaT)
-    df_hist_clean["time"] = pd.to_datetime(
-        df_hist_clean["time"],
-        errors="coerce"
-    )
-
-    # 🔥 remove linhas inválidas (evita crash)
+    df_hist_clean["time"] = pd.to_datetime(df_hist_clean["time"], errors="coerce")
     df_hist_clean = df_hist_clean.dropna(subset=["time"])
 
-    # formato longo
+    # 🔥 IMPORTANTE: manter ordem temporal correta
+    df_hist_clean = df_hist_clean.sort_values("time")
+
     df_melt = df_hist_clean.melt(
         id_vars=["time"],
         var_name="Status",
         value_name="Quantidade"
     )
 
-    # cores fixas
     color_scale = alt.Scale(
         domain=["livres", "ocupados", "pausa"],
         range=["#22c55e", "#ef4444", "#eab308"]
     )
 
-    # gráfico correto
     chart = alt.Chart(df_melt).mark_line(point=True).encode(
         x=alt.X(
             "time:T",
-            title="Horário (Brasil)",
-            axis=alt.Axis(format="%H:%M")
+            axis=alt.Axis(format="%H:%M"),
+            title="Horário (Brasil)"
         ),
         y=alt.Y("Quantidade:Q"),
         color=alt.Color("Status:N", scale=color_scale),
-        tooltip=[
-            alt.Tooltip("time:T", title="Hora"),
-            "Status",
-            "Quantidade"
-        ]
+        tooltip=["time:T", "Status", "Quantidade"]
     ).properties(height=400)
 
     st.altair_chart(chart, use_container_width=True)
