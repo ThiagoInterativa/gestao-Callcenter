@@ -9,6 +9,14 @@ import unicodedata
 import altair as alt  
 
 # ==============================
+# DIAGNÓSTICO TEMPORÁRIO (Remova depois)
+# ==============================
+st.write("---")
+st.write("### 🛠️ Diagnóstico do Secrets:")
+st.write("Chaves que o Streamlit consegue ver atualmente:", list(st.secrets.keys()))
+st.write("---")
+
+# ==============================
 # CONFIG
 # ==============================
 st.set_page_config(layout="wide", page_title="NOC Call Center")
