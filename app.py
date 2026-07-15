@@ -132,61 +132,90 @@ def login_e_get_status_whatsflux():
     login_url = "https://app.whatsflux.com.br/login"
     dashboard_url = "https://app.whatsflux.com.br/"
     
+    # Criamos a sessão que irá guardar os cookies gerados automaticamente
     session = requests.Session()
     
-    # Adicionando cabeçalho de navegador real para evitar bloqueios HTTP comuns
+    # Cabeçalhos robustos para o site achar que somos um Chrome real de fato
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         "Referer": login_url,
         "Origin": "https://app.whatsflux.com.br"
     }
     session.headers.update(headers)
     
     try:
-        # Carrega as credenciais seguras do seu Secrets
         email_whats = st.secrets["WHATSFLUX_EMAIL"]
         senha_whats = st.secrets["WHATSFLUX_SENHA"]
     except KeyError:
         return "Configure o Secrets", "offline"
 
     try:
-        # 1. Carrega a página de login para registrar cookies de sessão legítimos
-        r_login_page = session.get(login_url, timeout=10)
-        soup_login = BeautifulSoup(r_login_page.text, "html.parser")
+        # ==========================================
+        # PASSO 1: Descobrir Cookies Iniciais e CSRF
+        # ==========================================
+        r_inicial = session.get(login_url, timeout=10)
+        soup_login = BeautifulSoup(r_inicial.text, "html.parser")
         
-        # 2. Varredura automática para encontrar e incluir tokens de segurança (CSRF)
+        # O Python já guardou os cookies iniciais gerados pelo servidor dentro de 'session.cookies'
+        
+        # Buscando o token CSRF de todas as formas que o Laravel/React usam comuns no HTML:
+        csrf_token = ""
+        
+        # Tentativa A: Campo de input escondido comum (Ex: <input name="_token" type="hidden">)
+        input_token = soup_login.find("input", {"name": "_token"}) or soup_login.find("input", {"name": "csrf-token"})
+        if input_token:
+            csrf_token = input_token.get("value", "")
+            
+        # Tentativa B: Meta Tag no cabeçalho do HTML (Ex: <meta name="csrf-token" content="...">)
+        if not csrf_token:
+            meta_token = soup_login.find("meta", {"name": "csrf-token"}) or soup_login.find("meta", {"name": "token"})
+            if meta_token:
+                csrf_token = meta_token.get("content", "")
+                
+        # Se encontramos o token, adicionamos ele nos cabeçalhos e no payload
+        if csrf_token:
+            session.headers.update({
+                "X-CSRF-TOKEN": csrf_token,
+                "X-Requested-With": "XMLHttpRequest" # Comum para requisições assíncronas do React
+            })
+
+        # ==========================================
+        # PASSO 2: Realizar o Login Automático
+        # ==========================================
         payload = {
             "email": email_whats,
             "password": senha_whats
         }
         
-        # Procura por inputs ocultos comuns de token (Ex: Laravel ou frameworks PHP/JS)
-        token_input = soup_login.find("input", {"name": "_token"}) or soup_login.find("input", {"name": "csrf-token"})
-        if token_input:
-            payload["_token"] = token_input.get("value", "")
-            
-        # Procura por meta tags de CSRF caso não estejam em inputs
-        csrf_meta = soup_login.find("meta", {"name": "csrf-token"})
-        if csrf_meta:
-            session.headers.update({"X-CSRF-TOKEN": csrf_meta.get("content", "")})
-        
-        # 3. Envia a requisição de Login (POST)
+        # Se achou o token em input do tipo hidden, enviamos junto no formulário
+        if csrf_token and input_token:
+            payload["_token"] = csrf_token
+
+        # Fazemos o login enviando os dados. 
+        # requests.Session atualiza automaticamente o cookie interno para "Logado" se a senha estiver certa.
         res_login = session.post(login_url, data=payload, timeout=10)
         
-        # Se falhar, retorna o código exato do erro para diagnóstico rápido
-        if res_login.status_code != 200:
-            return f"Erro de Login (HTTP {res_login.status_code})", "offline"
-            
-        # 4. Acessa o dashboard inicial com a sessão logada
+        # Se o retorno der erro do servidor
+        if res_login.status_code not in [200, 302]: # 302 é o redirecionamento pós-login
+            return f"Falha Auth (HTTP {res_login.status_code})", "offline"
+
+        # ==========================================
+        # PASSO 3: Acessar o Dashboard Logado e Raspagem
+        # ==========================================
         r_dash = session.get(dashboard_url, timeout=10)
         soup = BeautifulSoup(r_dash.text, "html.parser")
 
-        # 5. Procura o técnico "Gabriel" na tabela
+        # Busca pelo Gabriel na tabela
         celulas = soup.find_all("td", class_="MuiTableCell-root MuiTableCell-body")
         
-        nome_tecnico = "Gabriel"  # Exibição padrão
+        nome_tecnico = "Gabriel"
         status = "offline"
+
+        # Se não houver células, talvez o login não tenha funcionado
+        if not celulas:
+            return "Painel Vazio / Login Falhou", "offline"
 
         for td in celulas:
             texto = td.get_text(strip=True)
@@ -196,19 +225,16 @@ def login_e_get_status_whatsflux():
                     svg = linha.find("svg")
                     if svg:
                         path = svg.find("path")
-                        # Verifica se possui o desenho circular do ícone "check" ativo (M12 2C6.48...)
                         if path and "M12 2C6.48" in path.get("d", ""):
                             status = "online"
                         else:
                             status = "offline"
-                break  # Encontrou o técnico, encerra a busca
+                break
 
         return nome_tecnico, status
 
     except Exception as e:
-        return f"Erro de Conexão ({str(e)[:25]})", "offline"
-        
-
+        return f"Erro de Conexão ({str(e)[:20]})", "offline"
 # ----- 🟢 NOVO: SCRAPING KANBAN -----
 def get_kanban_tasks():
     session = requests.Session()
