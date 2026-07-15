@@ -261,6 +261,56 @@ if not session:
     st.stop()
 
 # ==============================
+# 🟢 INTEGRAÇÃO WHATSFLUX (TECNICO LOGADO)
+# ==============================
+nome_tecnico, status_whats = get_whatsflux_status()
+
+status_badge = (
+    '<span class="status-badge badge-online">🟢 ONLINE</span>'
+    if status_whats == "online"
+    else '<span class="status-badge badge-offline">🔴 OFFLINE</span>'
+)
+
+st.markdown(f"""
+<div class="tech-status-container">
+    <div><strong>Suporte Técnico (WhatsFlux):</strong> {nome_tecnico}</div>
+    <div>{status_badge}</div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ==============================
+# 🔔 MONITORAMENTO DO KANBAN (EFEITO SONORO + DATA/HORA)
+# ==============================
+tarefas_atuais = get_kanban_tasks()
+agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
+
+# Se for a primeira execução, apenas salva as tarefas atuais
+if st.session_state.ultimo_kanban_tasks is None:
+    st.session_state.ultimo_kanban_tasks = tarefas_atuais
+else:
+    # Verifica se existem novos IDs que não estavam na verificação anterior
+    novas_tarefas = [t for t in tarefas_atuais if t not in st.session_state.ultimo_kanban_tasks]
+    
+    if novas_tarefas:
+        # Salva o dia e horário do alerta
+        st.session_state.ultima_notificacao_kanban = agora_br.strftime("%d/%m/%Y às %H:%M:%S")
+        st.session_state.ultimo_kanban_tasks = tarefas_atuais
+        
+        # Dispara o Áudio
+        play_sound()
+
+# Exibe o alerta do Kanban caso uma notificação recente tenha ocorrido
+if st.session_state.ultima_notificacao_kanban:
+    st.markdown(f"""
+    <div class="kanban-alert">
+        🔔 <strong>Nova tarefa criada no Kanban!</strong><br>
+        Identificada em: <span style="color: #6366f1; font-weight: bold;">{st.session_state.ultima_notificacao_kanban}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ==============================
 # DADOS PRINCIPAIS (AGENTES)
 # ==============================
 agentes = get_agentes(session)
@@ -366,56 +416,6 @@ st.subheader("👨‍💻 Agentes")
 
 df = pd.DataFrame(agentes, columns=["Nome", "Status"])
 st.dataframe(df, use_container_width=True)
-
-
-# ==============================
-# 🟢 INTEGRAÇÃO WHATSFLUX (TECNICO LOGADO)
-# ==============================
-nome_tecnico, status_whats = get_whatsflux_status()
-
-status_badge = (
-    '<span class="status-badge badge-online">🟢 ONLINE</span>'
-    if status_whats == "online"
-    else '<span class="status-badge badge-offline">🔴 OFFLINE</span>'
-)
-
-st.markdown(f"""
-<div class="tech-status-container">
-    <div><strong>Suporte Técnico (WhatsFlux):</strong> {nome_tecnico}</div>
-    <div>{status_badge}</div>
-</div>
-""", unsafe_allow_html=True)
-
-
-# ==============================
-# 🔔 MONITORAMENTO DO KANBAN (EFEITO SONORO + DATA/HORA)
-# ==============================
-tarefas_atuais = get_kanban_tasks()
-agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-# Se for a primeira execução, apenas salva as tarefas atuais
-if st.session_state.ultimo_kanban_tasks is None:
-    st.session_state.ultimo_kanban_tasks = tarefas_atuais
-else:
-    # Verifica se existem novos IDs que não estavam na verificação anterior
-    novas_tarefas = [t for t in tarefas_atuais if t not in st.session_state.ultimo_kanban_tasks]
-    
-    if novas_tarefas:
-        # Salva o dia e horário do alerta
-        st.session_state.ultima_notificacao_kanban = agora_br.strftime("%d/%m/%Y às %H:%M:%S")
-        st.session_state.ultimo_kanban_tasks = tarefas_atuais
-        
-        # Dispara o Áudio
-        play_sound()
-
-# Exibe o alerta do Kanban caso uma notificação recente tenha ocorrido
-if st.session_state.ultima_notificacao_kanban:
-    st.markdown(f"""
-    <div class="kanban-alert">
-        🔔 <strong>Nova tarefa criada no Kanban!</strong><br>
-        Identificada em: <span style="color: #6366f1; font-weight: bold;">{st.session_state.ultima_notificacao_kanban}</span>
-    </div>
-    """, unsafe_allow_html=True)
 
 # ==============================
 # AUTO ATUALIZAÇÃO
