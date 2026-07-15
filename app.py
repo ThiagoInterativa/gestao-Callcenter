@@ -138,20 +138,19 @@ def login_pabx():
 # ----- 🟢 AJUSTADO: LOGIN SEGURO WHATSFLUX -----
 
 def login_e_get_status_whatsflux():
-    # URL da página inicial e de login
-    base_url = "https://app.whatsflux.com.br"
-    login_url = "https://app.whatsflux.com.br/login"
+    # 🟢 SUA URL DE API DESCOBERTA!
+    login_api_url = "https://api.whatsflux.com.br/auth/login"
     dashboard_url = "https://app.whatsflux.com.br/"
     
     session = requests.Session()
     
-    # Headers completos para simular perfeitamente o navegador Chrome
+    # Cabeçalhos completos para o servidor aceitar a conexão JSON do Python
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8",
-        "Referer": login_url,
-        "Origin": base_url
+        "Content-Type": "application/json;charset=UTF-8",
+        "Referer": "https://app.whatsflux.com.br/login",
+        "Origin": "https://app.whatsflux.com.br"
     }
     session.headers.update(headers)
     
@@ -162,68 +161,40 @@ def login_e_get_status_whatsflux():
         return "Configure o Secrets", "offline"
 
     try:
-        # 1. Carrega a página de login para obter cookies iniciais (como o XSRF-TOKEN se houver)
-        r_init = session.get(login_url, timeout=10)
-        cookies = session.cookies.get_dict()
-        
-        # Prepara os payloads (tentaremos tanto formato JSON quanto Form padrão)
+        # Payload com o seu e-mail e senha no formato que a API espera
         payload = {
             "email": email_whats,
             "password": senha_whats
         }
 
-        # Em sistemas modernos, se o login visual é em /login, a API costuma ser em /api/login ou /api/auth
-        # Vamos tentar as 3 rotas mais prováveis que esses sistemas utilizam:
-        rotas_para_testar = [
-            ("https://app.whatsflux.com.br/api/login", "json"),
-            ("https://app.whatsflux.com.br/api/auth/login", "json"),
-            ("https://app.whatsflux.com.br/login", "data") # Form padrão
-        ]
+        # 1. Envia os dados para a API usando JSON
+        res_login = session.post(login_api_url, json=payload, timeout=10)
         
-        logged_in = False
-        status_code_retornado = 404
-        
-        for url, tipo in rotas_para_testar:
-            try:
-                if tipo == "json":
-                    res = session.post(url, json=payload, timeout=5)
-                else:
-                    res = session.post(url, data=payload, timeout=5)
-                
-                status_code_retornado = res.status_code
-                
-                # Se retornar sucesso (200, 201) ou redirecionamento (302)
-                if res.status_code in [200, 201, 302]:
-                    # Verifica se o corpo da resposta nos deu um token JWT
-                    try:
-                        data = res.json()
-                        token = data.get("token") or data.get("access_token") or data.get("tokenDeAcesso")
-                        if token:
-                            session.headers.update({"Authorization": f"Bearer {token}"})
-                    except Exception:
-                        pass # Continua usando os cookies salvos na Session
-                    
-                    logged_in = True
-                    break
-            except Exception:
-                continue
+        if res_login.status_code not in [200, 201, 302]:
+            return f"Falha Auth (HTTP {res_login.status_code})", "offline"
 
-        if not logged_in:
-            return f"Falha Auth (HTTP {status_code_retornado})", "offline"
+        # 2. Captura o Token retornado pela API e injeta na sessão para autenticar
+        try:
+            dados_resposta = res_login.json()
+            # Tenta encontrar o token de acesso na resposta da API
+            token = dados_resposta.get("token") or dados_resposta.get("access_token")
+            if token:
+                # Adiciona o Token de Autorização padrão que o React usa nas requisições
+                session.headers.update({"Authorization": f"Bearer {token}"})
+        except Exception:
+            pass # Caso o sistema autentique apenas por Cookies normais
 
-        # 2. Acessa a página principal já autenticado
+        # 3. Acessa a dashboard com a sessão já devidamente autenticada
         r_dash = session.get(dashboard_url, timeout=10)
         soup = BeautifulSoup(r_dash.text, "html.parser")
 
-        # 3. Procura o técnico "Gabriel" na tabela
+        # 4. Procura o técnico "Gabriel" na tabela
         celulas = soup.find_all("td", class_="MuiTableCell-root MuiTableCell-body")
         
         nome_tecnico = "Gabriel"
         status = "offline"
 
         if not celulas:
-            # Se logou mas a página veio sem a tabela, pode ser que a dashboard demore a renderizar (React pesado)
-            # Ou precisamos buscar de uma rota de API dos usuários. Mas vamos tentar ler o HTML primeiro:
             return "Painel Vazio / Login Falhou", "offline"
 
         for td in celulas:
@@ -234,11 +205,12 @@ def login_e_get_status_whatsflux():
                     svg = linha.find("svg")
                     if svg:
                         path = svg.find("path")
+                        # Valida se o SVG contém o círculo com check ativo
                         if path and "M12 2C6.48" in path.get("d", ""):
                             status = "online"
                         else:
                             status = "offline"
-                break
+                break # Encontrou o técnico, encerra a busca
 
         return nome_tecnico, status
 
