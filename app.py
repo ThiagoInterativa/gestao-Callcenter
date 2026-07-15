@@ -132,40 +132,71 @@ def login_pabx():
         return None
 
 # ----- 🟢 NOVO: SCRAPING WHATSFLUX -----
-def get_whatsflux_status():
-    """
-    Faz a requisição e extrai o nome do técnico e se ele está Online ou Offline.
-    Ajuste as classes/IDs do BeautifulSoup conforme a estrutura real do WhatsFlux.
-    """
+def login_e_get_status_whatsflux():
+    login_url = "https://app.whatsflux.com.br/login"
+    dashboard_url = "https://app.whatsflux.com.br/"
+    
     session = requests.Session()
+    
     try:
-        # Exemplo hipotético de autenticação do WhatsFlux (ajuste se necessário)
-        # Se for aberto ou usar Cookie persistente, carregue aqui.
-        payload = {
-            "email": st.secrets.get("WHATSFLUX_USER", EMAIL),
-            "password": st.secrets.get("WHATSFLUX_PASS", SENHA)
-        }
-        # Simulando acesso e leitura de status
-        r = session.get(WHATSFLUX_URL, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
-        
-        # --- SUBSTÍTUA ESTA LÓGICA PELO SELETOR HTML REAL DO SEU WHATSFLUX ---
-        # Exemplo genérico procurando classe 'user-name' e 'status-online'
-        nome_tecnico = "Técnico de Plantão" 
-        tecnico_elem = soup.find("span", class_="user-profile-name") # Substitua pela classe real
-        if tecnico_elem:
-            nome_tecnico = tecnico_elem.get_text(strip=True)
-            
-        is_online = False
-        # Supondo que procure um indicador de status ativo ou verde
-        if soup.find(class_="status-online") or "online" in r.text.lower():
-            is_online = True
-            
-        return nome_tecnico, "online" if is_online else "offline"
-    except Exception as e:
-        # Fallback caso falhe a requisição ao WhatsFlux
-        return "Técnico WhatsFlux", "offline"
+        # Carrega as credenciais seguras do seu Secrets
+        email_whats = st.secrets["WHATSFLUX_EMAIL"]
+        senha_whats = st.secrets["WHATSFLUX_SENHA"]
+    except KeyError:
+        return "Configure o Secrets", "offline"
 
+    try:
+        # 1. Carrega a página de login para iniciar a sessão e cookies
+        r_login_page = session.get(login_url, timeout=10)
+        
+        # 2. Prepara os dados de login baseados no HTML que você inspecionou
+        # 'email' e 'password' são os atributos 'name' dos inputs
+        payload = {
+            "email": email_whats,
+            "password": senha_whats
+        }
+        
+        # 3. Envia os dados de login (POST)
+        res_login = session.post(login_url, data=payload, timeout=10)
+        
+        # Se falhar a requisição
+        if res_login.status_code != 200:
+            return "Erro de Login (HTTP)", "offline"
+            
+        # 4. Acessa a página principal (já logado)
+        r_dash = session.get(dashboard_url, timeout=10)
+        soup = BeautifulSoup(r_dash.text, "html.parser")
+
+        # 5. Procura o técnico "Gabriel" na tabela
+        celulas = soup.find_all("td", class_="MuiTableCell-root MuiTableCell-body")
+        
+        nome_tecnico = "Gabriel"  # Nome padrão para exibição
+        status = "offline"
+
+        for td in celulas:
+            texto = td.get_text(strip=True)
+            if texto == "Gabriel":
+                # Achou a célula com o nome do Gabriel.
+                # Agora subimos para a linha (tr) que contém ele para achar o ícone de status
+                linha = td.find_parent("tr")
+                if linha:
+                    # Busca o ícone SVG na mesma linha
+                    svg = linha.find("svg")
+                    if svg:
+                        path = svg.find("path")
+                        # Verifica se o SVG tem o desenho (path) do círculo de check "online"
+                        if path and "M12 2C6.48" in path.get("d", ""):
+                            status = "online"
+                        else:
+                            status = "offline"
+                break  # Encontrou o Gabriel, encerra o loop de busca
+
+        return nome_tecnico, status
+
+    except Exception as e:
+        # Se algo falhar na conexão ou na raspagem, retorna o erro de forma limpa sem quebrar o app
+        return "Erro de Conexão", "offline"
+        
 
 # ----- 🟢 NOVO: SCRAPING KANBAN -----
 def get_kanban_tasks():
@@ -263,7 +294,8 @@ if not session:
 # ==============================
 # 🟢 INTEGRAÇÃO WHATSFLUX (TECNICO LOGADO)
 # ==============================
-nome_tecnico, status_whats = get_whatsflux_status()
+# Substitua a chamada antiga por esta:
+nome_tecnico, status_whats = login_e_get_status_whatsflux()
 
 status_badge = (
     '<span class="status-badge badge-online">🟢 ONLINE</span>'
@@ -277,7 +309,6 @@ st.markdown(f"""
     <div>{status_badge}</div>
 </div>
 """, unsafe_allow_html=True)
-
 
 # ==============================
 # 🔔 MONITORAMENTO DO KANBAN (EFEITO SONORO + DATA/HORA)
