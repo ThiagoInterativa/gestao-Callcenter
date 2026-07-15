@@ -23,10 +23,6 @@ WHATSFLUX_URL = "https://app.whatsflux.com.br/"
 EMAIL = st.secrets["EMAIL"]
 SENHA = st.secrets["SENHA"]
 
-# Credenciais para os novos sistemas (adicione no seu secrets do streamlit!)
-# KANBAN_USER / KANBAN_PASS / WHATSFLUX_USER / WHATSFLUX_PASS
-# Caso usem o mesmo login do PABX, altere para EMAIL e SENHA.
-
 REFRESH = 30  # segundos
 
 # Som de notificação (URL pública de um "Ping" limpo e profissional)
@@ -131,12 +127,21 @@ def login_pabx():
     except Exception:
         return None
 
-# ----- 🟢 NOVO: SCRAPING WHATSFLUX -----
+# ----- 🟢 AJUSTADO: LOGIN SEGURO WHATSFLUX -----
 def login_e_get_status_whatsflux():
     login_url = "https://app.whatsflux.com.br/login"
     dashboard_url = "https://app.whatsflux.com.br/"
     
     session = requests.Session()
+    
+    # Adicionando cabeçalho de navegador real para evitar bloqueios HTTP comuns
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Referer": login_url,
+        "Origin": "https://app.whatsflux.com.br"
+    }
+    session.headers.update(headers)
     
     try:
         # Carrega as credenciais seguras do seu Secrets
@@ -146,77 +151,75 @@ def login_e_get_status_whatsflux():
         return "Configure o Secrets", "offline"
 
     try:
-        # 1. Carrega a página de login para iniciar a sessão e cookies
+        # 1. Carrega a página de login para registrar cookies de sessão legítimos
         r_login_page = session.get(login_url, timeout=10)
+        soup_login = BeautifulSoup(r_login_page.text, "html.parser")
         
-        # 2. Prepara os dados de login baseados no HTML que você inspecionou
-        # 'email' e 'password' são os atributos 'name' dos inputs
+        # 2. Varredura automática para encontrar e incluir tokens de segurança (CSRF)
         payload = {
             "email": email_whats,
             "password": senha_whats
         }
         
-        # 3. Envia os dados de login (POST)
+        # Procura por inputs ocultos comuns de token (Ex: Laravel ou frameworks PHP/JS)
+        token_input = soup_login.find("input", {"name": "_token"}) or soup_login.find("input", {"name": "csrf-token"})
+        if token_input:
+            payload["_token"] = token_input.get("value", "")
+            
+        # Procura por meta tags de CSRF caso não estejam em inputs
+        csrf_meta = soup_login.find("meta", {"name": "csrf-token"})
+        if csrf_meta:
+            session.headers.update({"X-CSRF-TOKEN": csrf_meta.get("content", "")})
+        
+        # 3. Envia a requisição de Login (POST)
         res_login = session.post(login_url, data=payload, timeout=10)
         
-        # Se falhar a requisição
+        # Se falhar, retorna o código exato do erro para diagnóstico rápido
         if res_login.status_code != 200:
-            return "Erro de Login (HTTP)", "offline"
+            return f"Erro de Login (HTTP {res_login.status_code})", "offline"
             
-        # 4. Acessa a página principal (já logado)
+        # 4. Acessa o dashboard inicial com a sessão logada
         r_dash = session.get(dashboard_url, timeout=10)
         soup = BeautifulSoup(r_dash.text, "html.parser")
 
         # 5. Procura o técnico "Gabriel" na tabela
         celulas = soup.find_all("td", class_="MuiTableCell-root MuiTableCell-body")
         
-        nome_tecnico = "Gabriel"  # Nome padrão para exibição
+        nome_tecnico = "Gabriel"  # Exibição padrão
         status = "offline"
 
         for td in celulas:
             texto = td.get_text(strip=True)
             if texto == "Gabriel":
-                # Achou a célula com o nome do Gabriel.
-                # Agora subimos para a linha (tr) que contém ele para achar o ícone de status
                 linha = td.find_parent("tr")
                 if linha:
-                    # Busca o ícone SVG na mesma linha
                     svg = linha.find("svg")
                     if svg:
                         path = svg.find("path")
-                        # Verifica se o SVG tem o desenho (path) do círculo de check "online"
+                        # Verifica se possui o desenho circular do ícone "check" ativo (M12 2C6.48...)
                         if path and "M12 2C6.48" in path.get("d", ""):
                             status = "online"
                         else:
                             status = "offline"
-                break  # Encontrou o Gabriel, encerra o loop de busca
+                break  # Encontrou o técnico, encerra a busca
 
         return nome_tecnico, status
 
     except Exception as e:
-        # Se algo falhar na conexão ou na raspagem, retorna o erro de forma limpa sem quebrar o app
-        return "Erro de Conexão", "offline"
+        return f"Erro de Conexão ({str(e)[:25]})", "offline"
         
 
 # ----- 🟢 NOVO: SCRAPING KANBAN -----
 def get_kanban_tasks():
-    """
-    Acessa o Kanban e retorna uma lista com os IDs ou nomes das tarefas abertas.
-    """
     session = requests.Session()
     try:
-        # Se o Kanban exigir login, você precisará fazer a autenticação aqui primeiro.
-        # Exemplo de requisição GET direta (caso use autenticação básica ou cookie de sessão pública)
         r = session.get(KANBAN_URL, timeout=10)
         soup = BeautifulSoup(r.text, "html.parser")
         
-        # Encontra as tarefas no Kanban (geralmente tags com classe "task-board" ou "kanban-task")
-        # --- ADAPTE ESTE SELETOR PARA O HTML DO SEU KANBAN (ex: Kanboard usa classe 'task-board') ---
         tarefas = []
-        elementos_tarefas = soup.find_all("div", class_="task-board") # Seletor padrão do Kanboard
+        elementos_tarefas = soup.find_all("div", class_="task-board")
         
         for elem in elementos_tarefas:
-            # Pega o ID único da tarefa para monitorar se surgiu alguma nova
             task_id = elem.get("data-task-id") or elem.text.strip()
             if task_id:
                 tarefas.append(task_id)
@@ -294,14 +297,16 @@ if not session:
 # ==============================
 # 🟢 INTEGRAÇÃO WHATSFLUX (TECNICO LOGADO)
 # ==============================
-# Substitua a chamada antiga por esta:
 nome_tecnico, status_whats = login_e_get_status_whatsflux()
 
-status_badge = (
-    '<span class="status-badge badge-online">🟢 ONLINE</span>'
-    if status_whats == "online"
-    else '<span class="status-badge badge-offline">🔴 OFFLINE</span>'
-)
+# Trata a exibição do status dinâmico
+if status_whats == "online":
+    status_badge = '<span class="status-badge badge-online">🟢 ONLINE</span>'
+elif "Erro" in nome_tecnico:
+    status_badge = f'<span class="status-badge badge-offline">⚠️ {nome_tecnico}</span>'
+    nome_tecnico = "WhatsFlux"
+else:
+    status_badge = '<span class="status-badge badge-offline">🔴 OFFLINE</span>'
 
 st.markdown(f"""
 <div class="tech-status-container">
@@ -316,22 +321,16 @@ st.markdown(f"""
 tarefas_atuais = get_kanban_tasks()
 agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-# Se for a primeira execução, apenas salva as tarefas atuais
 if st.session_state.ultimo_kanban_tasks is None:
     st.session_state.ultimo_kanban_tasks = tarefas_atuais
 else:
-    # Verifica se existem novos IDs que não estavam na verificação anterior
     novas_tarefas = [t for t in tarefas_atuais if t not in st.session_state.ultimo_kanban_tasks]
     
     if novas_tarefas:
-        # Salva o dia e horário do alerta
         st.session_state.ultima_notificacao_kanban = agora_br.strftime("%d/%m/%Y às %H:%M:%S")
         st.session_state.ultimo_kanban_tasks = tarefas_atuais
-        
-        # Dispara o Áudio
         play_sound()
 
-# Exibe o alerta do Kanban caso uma notificação recente tenha ocorrido
 if st.session_state.ultima_notificacao_kanban:
     st.markdown(f"""
     <div class="kanban-alert">
