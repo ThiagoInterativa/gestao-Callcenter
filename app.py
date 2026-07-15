@@ -128,19 +128,20 @@ def login_pabx():
         return None
 
 # ----- 🟢 AJUSTADO: LOGIN SEGURO WHATSFLUX -----
+
 def login_e_get_status_whatsflux():
-    login_url = "https://app.whatsflux.com.br/login"
+    # Rota onde o frontend geralmente busca a API de login
+    login_api_url = "https://app.whatsflux.com.br/api/login" 
     dashboard_url = "https://app.whatsflux.com.br/"
     
-    # Criamos a sessão que irá guardar os cookies gerados automaticamente
     session = requests.Session()
     
-    # Cabeçalhos robustos para o site achar que somos um Chrome real de fato
+    # Imitando perfeitamente o comportamento de um navegador moderno acessando uma API React
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer": login_url,
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json;charset=UTF-8",
+        "Referer": "https://app.whatsflux.com.br/login",
         "Origin": "https://app.whatsflux.com.br"
     }
     session.headers.update(headers)
@@ -152,68 +153,43 @@ def login_e_get_status_whatsflux():
         return "Configure o Secrets", "offline"
 
     try:
-        # ==========================================
-        # PASSO 1: Descobrir Cookies Iniciais e CSRF
-        # ==========================================
-        r_inicial = session.get(login_url, timeout=10)
-        soup_login = BeautifulSoup(r_inicial.text, "html.parser")
-        
-        # O Python já guardou os cookies iniciais gerados pelo servidor dentro de 'session.cookies'
-        
-        # Buscando o token CSRF de todas as formas que o Laravel/React usam comuns no HTML:
-        csrf_token = ""
-        
-        # Tentativa A: Campo de input escondido comum (Ex: <input name="_token" type="hidden">)
-        input_token = soup_login.find("input", {"name": "_token"}) or soup_login.find("input", {"name": "csrf-token"})
-        if input_token:
-            csrf_token = input_token.get("value", "")
-            
-        # Tentativa B: Meta Tag no cabeçalho do HTML (Ex: <meta name="csrf-token" content="...">)
-        if not csrf_token:
-            meta_token = soup_login.find("meta", {"name": "csrf-token"}) or soup_login.find("meta", {"name": "token"})
-            if meta_token:
-                csrf_token = meta_token.get("content", "")
-                
-        # Se encontramos o token, adicionamos ele nos cabeçalhos e no payload
-        if csrf_token:
-            session.headers.update({
-                "X-CSRF-TOKEN": csrf_token,
-                "X-Requested-With": "XMLHttpRequest" # Comum para requisições assíncronas do React
-            })
-
-        # ==========================================
-        # PASSO 2: Realizar o Login Automático
-        # ==========================================
+        # payload estruturado em JSON
         payload = {
             "email": email_whats,
             "password": senha_whats
         }
-        
-        # Se achou o token em input do tipo hidden, enviamos junto no formulário
-        if csrf_token and input_token:
-            payload["_token"] = csrf_token
 
-        # Fazemos o login enviando os dados. 
-        # requests.Session atualiza automaticamente o cookie interno para "Logado" se a senha estiver certa.
-        res_login = session.post(login_url, data=payload, timeout=10)
+        # 1. Tentativa de Login enviando JSON direto para a rota de API mais comum
+        res_login = session.post(login_api_url, json=payload, timeout=10)
         
-        # Se o retorno der erro do servidor
-        if res_login.status_code not in [200, 302]: # 302 é o redirecionamento pós-login
+        # Caso a API de login seja na rota raiz sem o sufixo /api
+        if res_login.status_code == 404:
+            alt_login_url = "https://app.whatsflux.com.br/login"
+            res_login = session.post(alt_login_url, json=payload, timeout=10)
+
+        # Se ainda assim falhar
+        if res_login.status_code not in [200, 201, 302]:
             return f"Falha Auth (HTTP {res_login.status_code})", "offline"
 
-        # ==========================================
-        # PASSO 3: Acessar o Dashboard Logado e Raspagem
-        # ==========================================
+        # 2. Se a API retornou um Token JWT na resposta, nós o adicionamos na sessão
+        try:
+            dados_resposta = res_login.json()
+            token = dados_resposta.get("token") or dados_resposta.get("access_token")
+            if token:
+                session.headers.update({"Authorization": f"Bearer {token}"})
+        except Exception:
+            pass # Caso o site use apenas cookies normais de sessão
+
+        # 3. Acessa o dashboard logado
         r_dash = session.get(dashboard_url, timeout=10)
         soup = BeautifulSoup(r_dash.text, "html.parser")
 
-        # Busca pelo Gabriel na tabela
+        # 4. Procura o técnico "Gabriel" na tabela
         celulas = soup.find_all("td", class_="MuiTableCell-root MuiTableCell-body")
         
         nome_tecnico = "Gabriel"
         status = "offline"
 
-        # Se não houver células, talvez o login não tenha funcionado
         if not celulas:
             return "Painel Vazio / Login Falhou", "offline"
 
@@ -235,6 +211,7 @@ def login_e_get_status_whatsflux():
 
     except Exception as e:
         return f"Erro de Conexão ({str(e)[:20]})", "offline"
+
 # ----- 🟢 NOVO: SCRAPING KANBAN -----
 def get_kanban_tasks():
     session = requests.Session()
