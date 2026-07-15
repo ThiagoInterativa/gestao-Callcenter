@@ -136,15 +136,13 @@ def login_pabx():
         return None
 
 # ----- 🟢 AJUSTADO: LOGIN SEGURO WHATSFLUX -----
-
 def login_e_get_status_whatsflux():
-    # 🟢 SUA URL DE API DESCOBERTA!
     login_api_url = "https://api.whatsflux.com.br/auth/login"
-    dashboard_url = "https://app.whatsflux.com.br/"
+    # Chamamos a API sem filtrar sessão específica para trazer todas as conexões
+    whatsapp_api_url = "https://api.whatsflux.com.br/whatsapp/"
     
     session = requests.Session()
     
-    # Cabeçalhos completos para o servidor aceitar a conexão JSON do Python
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
@@ -154,69 +152,69 @@ def login_e_get_status_whatsflux():
     }
     session.headers.update(headers)
     
+    # Técnicos que queremos monitorar
+    tecnicos_alvo = ["Leonardo", "Matheus", "Gabriel", "Ramon", "Thiago", "Vinicius"]
+    
+    # Por padrão, todos começam como offline
+    status_tecnicos = {nome: "offline" for nome in tecnicos_alvo}
+    
     try:
         email_whats = st.secrets["WHATSFLUX_EMAIL"]
         senha_whats = st.secrets["WHATSFLUX_SENHA"]
     except KeyError:
-        return "Configure o Secrets", "offline"
+        return "Configure o Secrets", {}
 
     try:
-        # Payload com o seu e-mail e senha no formato que a API espera
+        # 1. Faz o login para pegar o Token JWT
         payload = {
             "email": email_whats,
             "password": senha_whats
         }
-
-        # 1. Envia os dados para a API usando JSON
         res_login = session.post(login_api_url, json=payload, timeout=10)
         
         if res_login.status_code not in [200, 201, 302]:
-            return f"Falha Auth (HTTP {res_login.status_code})", "offline"
+            return f"Falha Auth (HTTP {res_login.status_code})", {}
 
-        # 2. Captura o Token retornado pela API e injeta na sessão para autenticar
+        # 2. Extrai e injeta o Bearer Token nos Headers de requisição
         try:
             dados_resposta = res_login.json()
-            # Tenta encontrar o token de acesso na resposta da API
             token = dados_resposta.get("token") or dados_resposta.get("access_token")
             if token:
-                # Adiciona o Token de Autorização padrão que o React usa nas requisições
                 session.headers.update({"Authorization": f"Bearer {token}"})
         except Exception:
-            pass # Caso o sistema autentique apenas por Cookies normais
+            pass
 
-        # 3. Acessa a dashboard com a sessão já devidamente autenticada
-        r_dash = session.get(dashboard_url, timeout=10)
-        soup = BeautifulSoup(r_dash.text, "html.parser")
-
-        # 4. Procura o técnico "Gabriel" na tabela
-        celulas = soup.find_all("td", class_="MuiTableCell-root MuiTableCell-body")
+        # 3. Consome a API que traz as sessões de WhatsApp
+        res_whatsapp = session.get(whatsapp_api_url, timeout=10)
+        if res_whatsapp.status_code != 200:
+            return f"Erro API WhatsApp ({res_whatsapp.status_code})", {}
+            
+        dados_conexoes = res_whatsapp.json()
         
-        nome_tecnico = "Gabriel"
-        status = "offline"
+        # Garante que os dados vieram em formato de lista []
+        if not isinstance(dados_conexoes, list):
+            # Se vier um único objeto (dicionário), transformamos em lista
+            dados_conexoes = [dados_conexoes]
 
-        if not celulas:
-            return "Painel Vazio / Login Falhou", "offline"
+        # 4. Varre a lista de conexões buscando os técnicos alvo
+        for conexao in dados_conexoes:
+            nome_conexao = conexao.get("name", "")
+            status_conexao = conexao.get("status", "").upper()
+            
+            # Verifica se algum dos nossos técnicos está no nome da conexão
+            for tecnico in tecnicos_alvo:
+                # Usa .lower() para evitar problemas com maiúsculas/minúsculas
+                if tecnico.lower() in nome_conexao.lower():
+                    if status_conexao == "CONNECTED":
+                        status_tecnicos[tecnico] = "online"
+                    else:
+                        status_tecnicos[tecnico] = "offline"
 
-        for td in celulas:
-            texto = td.get_text(strip=True)
-            if texto == "Gabriel":
-                linha = td.find_parent("tr")
-                if linha:
-                    svg = linha.find("svg")
-                    if svg:
-                        path = svg.find("path")
-                        # Valida se o SVG contém o círculo com check ativo
-                        if path and "M12 2C6.48" in path.get("d", ""):
-                            status = "online"
-                        else:
-                            status = "offline"
-                break # Encontrou o técnico, encerra a busca
-
-        return nome_tecnico, status
+        return "OK", status_tecnicos
 
     except Exception as e:
-        return f"Erro de Conexão ({str(e)[:20]})", "offline"
-
+        return f"Erro de Conexão ({str(e)[:20]})", {}
+        
 # ----- 🟢 NOVO: SCRAPING KANBAN -----
 def get_kanban_tasks():
     session = requests.Session()
@@ -305,24 +303,33 @@ if not session:
 # ==============================
 # 🟢 INTEGRAÇÃO WHATSFLUX (TECNICO LOGADO)
 # ==============================
+# ==============================
+# 🟢 INTEGRAÇÃO WHATSFLUX (TECNICOS LOGADOS)
+# ==============================
+msg_retorno, status_whats = login_e_get_status_whatsflux()
 
-nome_tecnico, status_whats = login_e_get_status_whatsflux()
+st.subheader("👥 Status do Suporte Técnico (WhatsFlux)")
 
-# Trata a exibição do status dinâmico
-if status_whats == "online":
-    status_badge = '<span class="status-badge badge-online">🟢 ONLINE</span>'
-elif "Erro" in nome_tecnico:
-    status_badge = f'<span class="status-badge badge-offline">⚠️ {nome_tecnico}</span>'
-    nome_tecnico = "WhatsFlux"
+if "OK" in msg_retorno:
+    # Cria colunas lado a lado para exibir cada técnico
+    colunas_tecnicos = st.columns(len(status_whats))
+    
+    for col, (tecnico, status) in zip(colunas_tecnicos, status_whats.items()):
+        with col:
+            if status == "online":
+                badge = '<span class="status-badge badge-online">🟢 ONLINE</span>'
+            else:
+                badge = '<span class="status-badge badge-offline">🔴 OFFLINE</span>'
+                
+            st.markdown(f"""
+            <div style="background-color: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: center;">
+                <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">{tecnico}</div>
+                <div>{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
 else:
-    status_badge = '<span class="status-badge badge-offline">🔴 OFFLINE</span>'
-
-st.markdown(f"""
-<div class="tech-status-container">
-    <div><strong>Suporte Técnico (WhatsFlux):</strong> {nome_tecnico}</div>
-    <div>{status_badge}</div>
-</div>
-""", unsafe_allow_html=True)
+    # Exibe erro caso a API falhe
+    st.error(f"Erro ao buscar status do WhatsFlux: {msg_retorno}")
 
 # ==============================
 # 🔔 MONITORAMENTO DO KANBAN (EFEITO SONORO + DATA/HORA)
