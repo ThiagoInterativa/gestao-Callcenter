@@ -386,25 +386,48 @@ if not df_hist.empty:
 # ==============================
 # 3. AVISOS DE TAREFAS (FUNDO)
 # ==============================
+# ==============================
+# 3. AVISOS DE TAREFAS (FUNDO)
+# ==============================
 st.write("---")
-st.subheader("🔔 Fila de tarefa pendente - Kanban")
 
-# Pega as tarefas da sessão (e usa um dicionário vazio como fallback se não existir)
+col_titulo, col_botao = st.columns([3, 1])
+
+with col_titulo:
+    st.subheader("🔔 Fila de tarefa pendente - Kanban")
+
+with col_botao:
+    # Este botão aciona a função em Javascript para liberar o áudio do navegador!
+    st.markdown("""
+        <button onclick="ativarAudioESom()" style="
+            background-color: #2563eb; 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            cursor: pointer;
+            width: 100%;
+        ">🔊 Ativar & Testar Som</button>
+    """, unsafe_allow_html=True)
+
 tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 if tarefas_exibidas:
     for t_id, info in tarefas_exibidas.items():
+        # Tornamos o card clicável! Se clicar no card da tarefa, ele também tenta destravar o som.
         st.markdown(f"""
-        <div class="kanban-box">
+        <div class="kanban-box" onclick="ativarAudioESom()" style="cursor: pointer;" title="Clique aqui para ativar o som de notificações">
             <strong>⚠️ Tarefa {t_id} Criada {info['data_criacao']}</strong> | 
             <span>Assunto: {info['titulo']}</span> | 
             <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+            <span style="float: right; font-size: 12px; color: #94a3b8;">🖱️ Clique para autorizar áudio</span>
         </div>
         """, unsafe_allow_html=True)
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
-
-# ==============================
+    
+    # ==============================
 # TABELA DE AGENTES (CORRIGIDO PARA EXIBIR APENAS UMA VEZ)
 # ==============================
 st.write("---")
