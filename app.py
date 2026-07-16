@@ -420,51 +420,46 @@ tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 if tarefas_exibidas:
     for t_id, info in list(tarefas_exibidas.items()):
-        # Criamos um container que agrupa os dois elementos dentro do mesmo bloco escuro visualmente
-        with st.container():
-            # Dividimos o espaço interno do container (94% para texto, 6% para o botão no extremo direito)
-            c_txt, c_btn = st.columns([19, 1])
+        # Criamos um bloco que agrupa o texto e o botão de forma limpa
+        col_texto, col_botao = st.columns([18, 1.2])
+        
+        with col_texto:
+            st.markdown(f"""
+            <div class="kanban-box" style="margin-bottom: 0px; border-radius: 6px 0px 0px 6px; height: 48px; display: flex; align-items: center; padding-left: 15px;">
+                <span>⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | <strong>Assunto:</strong> {info['titulo']} | <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span></span>
+            </div>
+            """, unsafe_allow_html=True)
             
-            with c_txt:
-                # O card agora vai praticamente até o final da tela
-                st.markdown(f"""
-                <div class="kanban-box" style="margin-bottom: 0px; border-right: none; border-radius: 6px 0px 0px 6px;">
-                    <strong>⚠️ Tarefa #{t_id} Criada {info['data_criacao']}</strong> | 
-                    <span>Assunto: {info['titulo']}</span> | 
-                    <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            with c_btn:
-                # O botão de deletar fica "embutido" no canto direito do bloco
-                st.markdown(f"""
-                <div style="background-color: #1e293b; height: 100%; min-height: 53px; display: flex; align-items: center; justify-content: center; border-radius: 0px 6px 6px 0px; padding-right: 10px;">
-                """, unsafe_allow_html=True)
-                
-                if st.button("🗑️", key=f"del_{t_id}", help=f"Excluir tarefa #{t_id} do painel"):
-                    del st.session_state.tarefas_kanban[t_id]
-                    salvar_tarefas(st.session_state.tarefas_kanban)
-                    st.rerun()
-                    
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-        # Pequeno espaçador entre um card e outro
+        with col_botao:
+            # Correção do container HTML fechado antes do botão do Streamlit ser renderizado
+            st.markdown("""
+            <div style="background-color: #1e293b; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 0px 6px 6px 0px; border-left: none;">
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # O botão de deletar alinha perfeitamente sem conflitar com tags abertas
+            if st.button("🗑️", key=f"del_{t_id}", help=f"Excluir tarefa #{t_id} do painel"):
+                del st.session_state.tarefas_kanban[t_id]
+                salvar_tarefas(st.session_state.tarefas_kanban)
+                st.rerun()
+            
+        # Pequeno espaçamento vertical entre as tarefas do painel
         st.write("")
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
-
-    # ==============================
-# TABELA DE AGENTES (EXIBIDA APENAS UMA VEZ)
+    
+# ==============================
+# TABELA DE AGENTES (CORRIGIDO: INDEPENDENTE DO ELSE)
 # ==============================
 st.write("---")
 st.subheader("👨‍💻 Agentes de Plantão")
 
-# Criamos o dataframe e exibimos uma única vez
+# Exibição unificada da lista de agentes no final da tela
 df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
 st.dataframe(df_agentes, use_container_width=True)
 
 # ==============================
-# AUTO ATUALIZAR CONFIGURÁVEL (SEM GERAR DUPLICAÇÃO)
+# AUTO ATUALIZAR CONFIGURÁVEL
 # ==============================
 placeholder = st.empty()
 
