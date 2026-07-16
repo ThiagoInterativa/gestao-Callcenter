@@ -368,7 +368,7 @@ if not df_hist.empty:
 # 3. AVISOS DE TAREFAS (FUNDO)
 # ==============================
 st.write("---")
-st.subheader("🔔 Fila Tarefa pendente - Kanban")
+st.subheader("🔔 Fila de tarefa pendente - Kanban")
 
 tarefas_exibidas = st.session_state.tarefas_kanban
 
