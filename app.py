@@ -53,7 +53,7 @@ body {
 
 /* CARD  */
 .small-card {
-    padding: 25px;
+    padding: 26px;
     border-radius: 8px;
     text-align: center;
     font-size: 20px;
