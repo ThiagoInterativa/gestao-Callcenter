@@ -1,4 +1,4 @@
-Projeto piloto de sistema Gestão callcenter
+Projeto piloto de sistema Gestão helpdesk intercom
 
-<img width="1751" height="731" alt="image" src="https://github.com/user-attachments/assets/a922de28-006f-46ec-abbc-26b9d34e6da8" />
+<img width="1752" height="803" alt="image" src="https://github.com/user-attachments/assets/e2746236-dade-4507-afc6-25d8043697cd" />
 
