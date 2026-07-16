@@ -86,24 +86,26 @@ body {
 # ==============================
 # SISTEMA DE ÁUDIO CORRIGIDO (BOTÃO COMPACTO)
 # ==============================
+
 def renderizar_botao_audio():
     # URL de áudio direta
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
     
     tocar_agora = "true" if st.session_state.get("play_alert", False) else "false"
     
-    # Renderiza apenas o botão azul limpo e o elemento de áudio escondido
+    # Reduzimos o padding, a fonte e definimos max-width para 180px (botão menor)
     sound_html = f"""
     <div style="display: flex; justify-content: flex-end; align-items: center; height: 40px;">
         <button id="btn-ativar-som" onclick="testarEAtivarSom()" style="
             background-color: #2563eb; 
             color: white; 
             border: none; 
-            padding: 8px 16px; 
+            padding: 6px 12px; 
             border-radius: 6px; 
             font-weight: bold; 
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
+            max-width: 180px;
             width: 100%;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         ">🔊 Ativar & Testar Som</button>
@@ -136,8 +138,9 @@ def renderizar_botao_audio():
         }}
     </script>
     """
+    # Altura pequena (50px) para não empurrar os elementos para baixo
     st.components.v1.html(sound_html, height=50)
-
+    
 # ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
