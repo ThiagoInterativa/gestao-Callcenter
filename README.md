@@ -1,4 +1,4 @@
 Projeto piloto de sistema Gestão helpdesk intercom
 
-<img width="1752" height="803" alt="image" src="https://github.com/user-attachments/assets/e2746236-dade-4507-afc6-25d8043697cd" />
+<img width="1815" height="812" alt="image" src="https://github.com/user-attachments/assets/3eef7a03-8805-479a-99ca-e59b4bf714f5" />
 
