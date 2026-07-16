@@ -26,11 +26,22 @@ SENHA = st.secrets["SENHA"]
 KANBAN_USER = st.secrets["KANBAN_USER"]
 KANBAN_PASS = st.secrets["KANBAN_PASS"]
 
-REFRESH = 30  # segundos
 TAREFAS_FILE = "tarefas_pendentes.json"
 
 # ==============================
-# CSS NOC + EFEITOS
+# CONTROLE DE ATUALIZAÇÃO (BARRA LATERAL)
+# ==============================
+st.sidebar.header("⚙️ Configurações")
+refresh_rate = st.sidebar.slider(
+    "Tempo de atualização (segundos)", 
+    min_value=10, 
+    max_value=300, 
+    value=30, 
+    step=5
+)
+
+# ==============================
+# CSS NOC (VISUAL PROFISSIONAL)
 # ==============================
 st.markdown("""
 <style>
@@ -39,12 +50,14 @@ body {
     color: white;
 }
 
-.big-card {
-    padding: 30px;
-    border-radius: 12px;
+/* CARD MENOR */
+.small-card {
+    padding: 15px;
+    border-radius: 8px;
     text-align: center;
-    font-size: 28px;
+    font-size: 20px;
     font-weight: bold;
+    line-height: 1.2;
 }
 
 .green { background-color: #16a34a; }
@@ -53,28 +66,40 @@ body {
 
 .title {
     text-align: center;
-    font-size: 40px;
+    font-size: 32px;
     font-weight: bold;
     margin-bottom: 20px;
 }
 
-.kanban-card {
+/* CONTAINER DE TAREFA ESTILIZADO */
+.kanban-box {
     background-color: #1e293b;
-    border-left: 5px solid #3b82f6;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 10px;
+    border-left: 5px solid #2563eb;
+    padding: 12px 18px;
+    border-radius: 6px;
+    margin-bottom: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Audio de Alerta (Som de Notificação moderno via Base64/HTML)
+# ==============================
+# SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
+# ==============================
 def play_sound():
-    # Usando um áudio público de notificação limpo
-    audio_url = "https://assets.mixkit.co/active_storage/sfx/2869/2869-500.wav"
+    # Usando um arquivo de som de notificação MP3 limpo e público
+    audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
     sound_html = f"""
-    <iframe src="{audio_url}" allow="autoplay" style="display:none" id="iframeAudio"></iframe>
-    <audio autoplay><source src="{audio_url}" type="audio/wav"></audio>
+    <audio id="notif-sound" src="{audio_url}" preload="auto"></audio>
+    <script>
+        var playPromise = document.getElementById('notif-sound').play();
+        if (playPromise !== undefined) {{
+            playPromise.then(function() {{
+                console.log('Alerta sonoro executado com sucesso.');
+            }}).catch(function(error) {{
+                console.log('Interação do usuário necessária para o áudio: ', error);
+            }});
+        }}
+    </script>
     """
     st.markdown(sound_html, unsafe_allow_html=True)
 
@@ -94,13 +119,6 @@ def salvar_tarefas(tarefas):
     with open(TAREFAS_FILE, "w", encoding="utf-8") as f:
         json.dump(tarefas, f, indent=4, ensure_ascii=False)
 
-# Inicializar no session_state
-if "tarefas_kanban" not in st.session_state:
-    st.session_state.tarefas_kanban = carregar_tarefas_salvas()
-
-if "play_alert" not in st.session_state:
-    st.session_state.play_alert = False
-
 # ==============================
 # UTILS
 # ==============================
@@ -111,7 +129,7 @@ def remover_acentos(txt):
     )
 
 # ==============================
-# LOGIN PABX
+# LOGINS E SCRAPING
 # ==============================
 def login():
     session = requests.Session()
@@ -130,17 +148,11 @@ def login():
     except Exception:
         return None
 
-# ==============================
-# LOGIN KANBAN
-# ==============================
 def login_kanban():
     session = requests.Session()
     try:
-        # Pega a página de login para iniciar cookies/CSRF se houver
         r = session.get("https://kanban.interativanet.com.br/?controller=AuthController&action=login")
         soup = BeautifulSoup(r.text, "html.parser")
-        
-        # Procura token CSRF se o Kanban exigir
         csrf_token = soup.find("input", {"name": "csrf_token"})
         
         payload = {
@@ -150,14 +162,11 @@ def login_kanban():
         if csrf_token:
             payload["csrf_token"] = csrf_token["value"]
 
-        res = session.post(KANBAN_LOGIN_URL, data=payload)
+        session.post(KANBAN_LOGIN_URL, data=payload)
         return session
     except Exception:
         return None
 
-# ==============================
-# PEGAR AGENTES
-# ==============================
 def get_agentes(session):
     try:
         r = session.get(MONITOR_URL)
@@ -191,9 +200,6 @@ def get_agentes(session):
     except Exception:
         return []
 
-# ==============================
-# RASPAGEM E ATUALIZAÇÃO KANBAN
-# ==============================
 def atualizar_kanban(session_kb):
     if not session_kb:
         return
@@ -201,14 +207,12 @@ def atualizar_kanban(session_kb):
     try:
         r = session_kb.get(KANBAN_URL)
         soup = BeautifulSoup(r.text, "html.parser")
-        
         atividades = soup.find_all("div", class_="activity-content")
         
         tarefas_atuais = st.session_state.tarefas_kanban.copy()
         houve_alteracao = False
         disparar_som = False
 
-        # Processar da atividade mais antiga para a mais recente
         for atividade in reversed(atividades):
             title_p = atividade.find("p", class_="activity-title")
             if not title_p:
@@ -221,7 +225,7 @@ def atualizar_kanban(session_kb):
             if not link_task or not date_span:
                 continue
                 
-            task_id = link_task.get_text(strip=True) # Ex: "#5127"
+            task_id = link_task.get_text(strip=True)
             data_atividade = date_span.get_text(strip=True)
             
             desc_div = atividade.find("div", class_="activity-description")
@@ -238,7 +242,7 @@ def atualizar_kanban(session_kb):
                     houve_alteracao = True
                     disparar_som = True
 
-            # Caso 2: Finalizou a tarefa (Remove da lista)
+            # Caso 2: Finalizou a tarefa
             elif "finalizou a tarefa" in texto_acao:
                 if task_id in tarefas_atuais:
                     del tarefas_atuais[task_id]
@@ -254,13 +258,10 @@ def atualizar_kanban(session_kb):
         st.sidebar.error(f"Erro ao ler Kanban: {e}")
 
 # ==============================
-# EXECUÇÃO DO FLUXO DO APP
-# ==============================# ==============================
-# EXECUÇÃO DO FLUXO DO APP
+# INICIALIZAÇÃO DE VARIÁVEIS DO ESTADO
 # ==============================
-st.markdown('<div class="title">📡 Gestor de Call Center & NOC</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
 
-# 1. GARANTE A INICIALIZAÇÃO DE TODAS AS VARIÁVEIS DE SESSÃO NO TOPO
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
@@ -270,16 +271,15 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
-# Tocar som se houver flag ativa na sessão
+# Gerenciador de alerta sonoro
 if st.session_state.play_alert:
     play_sound()
-    st.session_state.play_alert = False  # Reseta para não dar loop infinito de som
+    st.session_state.play_alert = False  # Limpa o gatilho
 
-# Sessão persistente PABX
+# Logins automáticos/Persistidos
 if "session" not in st.session_state or not st.session_state.session:
     st.session_state.session = login()
 
-# Sessão persistente Kanban
 if "session_kanban" not in st.session_state or not st.session_state.session_kanban:
     st.session_state.session_kanban = login_kanban()
 
@@ -290,20 +290,18 @@ if not session:
     st.error("Erro no login do PABX")
     st.stop()
 
-# Coleta de dados
+# Busca e atualiza as APIs
 agentes = get_agentes(session)
 atualizar_kanban(session_kb)
 
-# ==============================
-# CONTADORES
-# ==============================
+# Contagem
 livres = sum(1 for _, s in agentes if s == "livre")
 ocupados = sum(1 for _, s in agentes if s == "ocupado")
 pausa = sum(1 for _, s in agentes if s == "pausa")
 
 agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-# Salvar histórico de NOC (Agora funciona com segurança!)
+# Salva histórico de NOC
 registro = {
     "time": agora_br,
     "livres": int(livres),
@@ -313,70 +311,81 @@ registro = {
 st.session_state.historico.append(registro)
 
 # ==============================
-# LAYOUT PRINCIPAL: DASHBOARD & KANBAN
+# 1. CARDS REDUZIDOS (TOPO)
 # ==============================
-col_noc, col_kanban = st.columns([2, 1])
+col1, col2, col3 = st.columns(3)
 
-with col_noc:
-    st.subheader("📊 Status dos Agentes")
-    card1, card2, card3 = st.columns(3)
-    with card1:
-        st.markdown(f'<div class="big-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
-    with card2:
-        st.markdown(f'<div class="big-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
-    with card3:
-        st.markdown(f'<div class="big-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
+with col1:
+    st.markdown(f'<div class="small-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
 
-    # Gráfico Histórico
-    df_hist = pd.DataFrame(st.session_state.historico)
-    if not df_hist.empty:
-        df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
-        df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
-        
-        for col in ["livres", "ocupados", "pausa"]:
-            if col not in df_hist.columns:
-                df_hist[col] = 0
-        df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
+with col2:
+    st.markdown(f'<div class="small-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
 
-        series = ["livres", "ocupados"]
-        if df_hist["pausa"].sum() > 0:
-            series.append("pausa")
+with col3:
+    st.markdown(f'<div class="small-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
-        df_plot = df_hist.copy()
-        for col in ["livres", "ocupados"]:
-            df_plot[col] = df_plot[col].replace(0, None)
+st.write("")  # Espaçador
 
-        df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
-        color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
-        color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
+# ==============================
+# 2. GRÁFICO (CENTRO)
+# ==============================
+df_hist = pd.DataFrame(st.session_state.historico)
 
-        chart = alt.Chart(df_melt).mark_line(point=True).encode(
-            x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
-            y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
-            color=alt.Color("Status:N", scale=color_scale),
-            tooltip=["time:T", "Status", "Quantidade"]
-        ).properties(height=300)
-        
-        st.altair_chart(chart, use_container_width=True)
-
-with col_kanban:
-    st.subheader("🔔 Tarefas Kanban Ativas")
+if not df_hist.empty:
+    df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
+    df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
     
-    tarefas_exibidas = st.session_state.tarefas_kanban
-    if tarefas_exibidas:
-        for t_id, info in tarefas_exibidas.items():
-            st.markdown(f"""
-            <div class="kanban-card">
-                <strong>Tarefa {t_id} Criada {info['data_criacao']}</strong><br>
-                <small>Assunto: {info['titulo']}</small><br>
-                <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.info("Nenhuma tarefa pendente no momento.")
+    for col in ["livres", "ocupados", "pausa"]:
+        if col not in df_hist.columns:
+            df_hist[col] = 0
+            
+    df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
+
+    series = ["livres", "ocupados"]
+    if df_hist["pausa"].sum() > 0:
+        series.append("pausa")
+
+    df_plot = df_hist.copy()
+    for col in ["livres", "ocupados"]:
+        df_plot[col] = df_plot[col].replace(0, None)
+
+    df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
+    
+    color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
+    color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
+
+    chart = alt.Chart(df_melt).mark_line(point=True).encode(
+        x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
+        y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
+        color=alt.Color("Status:N", scale=color_scale),
+        tooltip=["time:T", "Status", "Quantidade"]
+    ).properties(height=320)
+
+    st.altair_chart(chart, use_container_width=True)
 
 # ==============================
-# TABELA DE AGENTES (Fundo)
+# 3. AVISOS DE TAREFAS (FUNDO)
+# ==============================
+st.write("---")
+st.subheader("🔔 Fila de Atendimento - Kanban")
+
+tarefas_exibidas = st.session_state.tarefas_kanban
+
+if tarefas_exibidas:
+    # Mostra os avisos em um formato inline limpo
+    for t_id, info in tarefas_exibidas.items():
+        st.markdown(f"""
+        <div class="kanban-box">
+            <strong>⚠️ Tarefa {t_id} Criada {info['data_criacao']}</strong> | 
+            <span>Assunto: {info['titulo']}</span> | 
+            <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+        </div>
+        """, unsafe_allow_html=True)
+else:
+    st.info("Nenhuma tarefa pendente registrada no painel.")
+
+# ==============================
+# TABELA DE AGENTES
 # ==============================
 st.write("---")
 st.subheader("👨‍💻 Agentes de Plantão")
@@ -384,7 +393,7 @@ df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
 st.dataframe(df_agentes, use_container_width=True)
 
 # ==============================
-# AUTO REFRESH
+# AUTO ATUALIZAR CONFIGURÁVEL
 # ==============================
-time.sleep(REFRESH)
+time.sleep(refresh_rate)
 st.rerun()
