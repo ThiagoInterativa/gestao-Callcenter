@@ -255,8 +255,20 @@ def atualizar_kanban(session_kb):
 
 # ==============================
 # EXECUÇÃO DO FLUXO DO APP
+# ==============================# ==============================
+# EXECUÇÃO DO FLUXO DO APP
 # ==============================
 st.markdown('<div class="title">📡 Gestor de Call Center & NOC</div>', unsafe_allow_html=True)
+
+# 1. GARANTE A INICIALIZAÇÃO DE TODAS AS VARIÁVEIS DE SESSÃO NO TOPO
+if "historico" not in st.session_state:
+    st.session_state.historico = []
+
+if "tarefas_kanban" not in st.session_state:
+    st.session_state.tarefas_kanban = carregar_tarefas_salvas()
+
+if "play_alert" not in st.session_state:
+    st.session_state.play_alert = False
 
 # Tocar som se houver flag ativa na sessão
 if st.session_state.play_alert:
@@ -291,7 +303,7 @@ pausa = sum(1 for _, s in agentes if s == "pausa")
 
 agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-# Salvar histórico de NOC
+# Salvar histórico de NOC (Agora funciona com segurança!)
 registro = {
     "time": agora_br,
     "livres": int(livres),
