@@ -89,39 +89,66 @@ body {
 # ==============================
 # SISTEMA DE ÁUDIO INTERATIVO (LIBERAÇÃO POR CLIQUE)
 # ==============================
-def play_sound():
+# ==============================
+# SISTEMA DE ÁUDIO CORRIGIDO (MESMO CONTEXTO / IFRAME)
+# ==============================
+def renderizar_sistema_audio():
+    # URL de áudio limpa e direta
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
+    
+    # Se houver um alerta novo pendente, dizemos ao JS para tocar automaticamente
+    tocar_agora = "true" if st.session_state.get("play_alert", False) else "false"
+    
     sound_html = f"""
+    <div style="background-color: #1e293b; border: 1px solid #3b82f6; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
+        <span style="color: #94a3b8; font-size: 14px; display: block; margin-bottom: 8px;">🔊 Sistema de Alerta Sonoro</span>
+        <button id="btn-ativar-som" onclick="testarEAtivarSom()" style="
+            background-color: #2563eb; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            max-width: 250px;
+        ">🔊 Ativar & Testar Som</button>
+    </div>
+
     <audio id="notif-sound" src="{audio_url}" preload="auto"></audio>
+
     <script>
-        // Função para forçar a permissão e tocar um bipe rápido
-        function ativarAudioESom() {{
-            var audio = document.getElementById('notif-sound');
+        var audio = document.getElementById('notif-sound');
+        var deveTocarAutomatico = {tocar_agora};
+
+        // 1. Função executada ao clicar manualmente no botão
+        function testarEAtivarSom() {{
             if (audio) {{
                 audio.volume = 1.0;
-                audio.play().then(function() {{
-                    console.log('Permissão de áudio concedida pelo clique!');
-                    alert('🔊 Som de alerta ativado com sucesso para este painel!');
-                }}).catch(function(error) {{
-                    console.log('Erro ao tentar tocar áudio:', error);
-                }});
+                audio.play()
+                    .then(function() {{
+                        console.log("Áudio desbloqueado com sucesso!");
+                        alert("✅ Excelente! Som do painel ativado e autorizado com sucesso.");
+                    }})
+                    .catch(function(err) {{
+                        console.log("Erro ao tocar áudio:", err);
+                        alert("❌ Erro ao ativar o som. Verifique se o volume do computador está ligado.");
+                    }});
             }}
         }}
 
-        // Se o sistema de alerta estiver ativo no Streamlit, tenta tocar automaticamente
-        var playPromise = document.getElementById('notif-sound').play();
-        if (playPromise !== undefined) {{
-            playPromise.then(function() {{
-                console.log('Alerta sonoro executado automaticamente.');
-            }}).catch(function(error) {{
-                console.log('Autoplay bloqueado. Aguardando interação do usuário.');
+        // 2. Lógica de reprodução automática (se o Streamlit sinalizar que há nova tarefa)
+        if (deveTocarAutomatico && audio) {{
+            audio.volume = 1.0;
+            audio.play().catch(function(e) {{
+                console.log("Autoplay bloqueado. Aguardando ativação manual pelo botão.", e);
             }});
         }}
     </script>
     """
-    st.markdown(sound_html, unsafe_allow_html=True)
-    
-# ==============================
+    st.components.v1.html(sound_html, height=100)
+    # ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
 def carregar_tarefas_salvas():
@@ -291,10 +318,12 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
-# Gerenciador de alerta sonoro
+# Renderiza o painel do botão de som de forma isolada e segura
+renderizar_sistema_audio()
+
+# Se o alerta foi disparado nesta rodada, nós limpamos a flag após a renderização
 if st.session_state.play_alert:
-    play_sound()
-    st.session_state.play_alert = False  # Limpa o gatilho
+    st.session_state.play_alert = False
 
 # Logins automáticos/Persistidos
 if "session" not in st.session_state or not st.session_state.session:
@@ -386,42 +415,18 @@ if not df_hist.empty:
 # ==============================
 # 3. AVISOS DE TAREFAS (FUNDO)
 # ==============================
-# ==============================
-# 3. AVISOS DE TAREFAS (FUNDO)
-# ==============================
 st.write("---")
-
-col_titulo, col_botao = st.columns([3, 1])
-
-with col_titulo:
-    st.subheader("🔔 Fila de tarefa pendente - Kanban")
-
-with col_botao:
-    # Este botão aciona a função em Javascript para liberar o áudio do navegador!
-    st.markdown("""
-        <button onclick="ativarAudioESom()" style="
-            background-color: #2563eb; 
-            color: white; 
-            border: none; 
-            padding: 8px 16px; 
-            border-radius: 6px; 
-            font-weight: bold; 
-            cursor: pointer;
-            width: 100%;
-        ">🔊 Ativar & Testar Som</button>
-    """, unsafe_allow_html=True)
+st.subheader("🔔 Fila de tarefa pendente - Kanban")
 
 tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 if tarefas_exibidas:
     for t_id, info in tarefas_exibidas.items():
-        # Tornamos o card clicável! Se clicar no card da tarefa, ele também tenta destravar o som.
         st.markdown(f"""
-        <div class="kanban-box" onclick="ativarAudioESom()" style="cursor: pointer;" title="Clique aqui para ativar o som de notificações">
+        <div class="kanban-box">
             <strong>⚠️ Tarefa {t_id} Criada {info['data_criacao']}</strong> | 
             <span>Assunto: {info['titulo']}</span> | 
             <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-            <span style="float: right; font-size: 12px; color: #94a3b8;">🖱️ Clique para autorizar áudio</span>
         </div>
         """, unsafe_allow_html=True)
 else:
