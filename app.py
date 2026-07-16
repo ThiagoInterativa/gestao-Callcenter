@@ -370,7 +370,8 @@ if not df_hist.empty:
 st.write("---")
 st.subheader("🔔 Fila de tarefa pendente - Kanban")
 
-tarefas_exibidas = st.session_state.tarefas_kanban
+# Pega as tarefas da sessão (e usa um dicionário vazio como fallback se não existir)
+tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 if tarefas_exibidas:
     for t_id, info in tarefas_exibidas.items():
@@ -384,6 +385,7 @@ if tarefas_exibidas:
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
 
+# ==============================
 # ==============================
 # TABELA DE AGENTES
 # ==============================
