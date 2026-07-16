@@ -1,10 +1,3 @@
-Se o primeiro código funcionou com as mesmas configurações de secrets, o problema no segundo código aconteceu porque o arquivo `secrets.toml` possui todas as variáveis no mesmo nível (globais), mas a lógica de login do Kanban que escrevi no segundo script tentou buscar os dados usando `st.secrets["KANBAN_USER"]` e `st.secrets["KANBAN_PASS"]` que talvez tenham nomes ligeiramente diferentes no seu arquivo de segredos (como letras maiúsculas/minúsculas) ou o Streamlit se perdeu ao carregar chaves novas se o servidor não foi reiniciado.
-
-Para garantir compatibilidade total, **voltei o sistema para usar exatamente as mesmas variáveis do seu primeiro código (`EMAIL` e `SENHA`) para fazer os dois logins**, eliminando qualquer risco de `KeyError` por chaves novas.
-
-Aqui está o código ajustado, limpo e pronto para rodar:
-
-```python
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -28,9 +21,10 @@ MONITOR_URL = "https://pabx.evence.com.br/callcenter/monitoramentoAgentes/detalh
 KANBAN_LOGIN_URL = "https://kanban.interativanet.com.br/?controller=AuthController&action=check"
 KANBAN_URL = "https://kanban.interativanet.com.br/?controller=ProjectOverviewController&action=show&project_id=1&search=status%3Aopen"
 
-# Usando as variáveis idênticas ao primeiro código para evitar qualquer KeyError
 EMAIL = st.secrets["EMAIL"]
 SENHA = st.secrets["SENHA"]
+KANBAN_USER = st.secrets["KANBAN_USER"]
+KANBAN_PASS = st.secrets["KANBAN_PASS"]
 
 TAREFAS_FILE = "tarefas_pendentes.json"
 
@@ -92,6 +86,7 @@ body {
 # SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
 # ==============================
 def play_sound():
+    # Usando um arquivo de som de notificação MP3 limpo e público
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
     sound_html = f"""
     <audio id="notif-sound" src="{audio_url}" preload="auto"></audio>
@@ -160,10 +155,9 @@ def login_kanban():
         soup = BeautifulSoup(r.text, "html.parser")
         csrf_token = soup.find("input", {"name": "csrf_token"})
         
-        # Usando EMAIL e SENHA também para autenticar no Kanban
         payload = {
-            "username": EMAIL,
-            "password": SENHA
+            "username": KANBAN_USER,
+            "password": KANBAN_PASS
         }
         if csrf_token:
             payload["csrf_token"] = csrf_token["value"]
@@ -378,6 +372,7 @@ st.subheader("🔔 Fila de Atendimento - Kanban")
 tarefas_exibidas = st.session_state.tarefas_kanban
 
 if tarefas_exibidas:
+    # Mostra os avisos em um formato inline limpo
     for t_id, info in tarefas_exibidas.items():
         st.markdown(f"""
         <div class="kanban-box">
@@ -402,5 +397,3 @@ st.dataframe(df_agentes, use_container_width=True)
 # ==============================
 time.sleep(refresh_rate)
 st.rerun()
-
-```
