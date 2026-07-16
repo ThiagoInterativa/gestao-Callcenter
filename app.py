@@ -400,9 +400,6 @@ if not df_hist.empty:
 # ==============================
 # 3. AVISOS DE TAREFAS (FUNDO)
 # ==============================
-# ==============================
-# 3. AVISOS DE TAREFAS (FUNDO)
-# ==============================
 st.write("---")
 
 # Criamos duas colunas para o título e o botão de ativar som
@@ -422,32 +419,40 @@ if st.session_state.get("play_alert", False):
 tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 if tarefas_exibidas:
-    # Criamos uma cópia para poder deletar itens de forma segura enquanto iteramos
     for t_id, info in list(tarefas_exibidas.items()):
-        # Criamos duas colunas para cada tarefa: uma grande para o texto, uma pequena para o botão de deletar
-        col_txt, col_del = st.columns([9, 1])
-        
-        with col_txt:
-            st.markdown(f"""
-            <div class="kanban-box">
-                <strong>⚠️ Tarefa #{t_id} Criada {info['data_criacao']}</strong> | 
-                <span>Assunto: {info['titulo']}</span> | 
-                <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-            </div>
-            """, unsafe_allow_html=True)
+        # Criamos um container que agrupa os dois elementos dentro do mesmo bloco escuro visualmente
+        with st.container():
+            # Dividimos o espaço interno do container (94% para texto, 6% para o botão no extremo direito)
+            c_txt, c_btn = st.columns([19, 1])
             
-        with col_del:
-            # Botão invisível/alinhado para exclusão manual
-            st.write("") # Pequeno espaçador para alinhar verticalmente com a caixa
-            if st.button("🗑️", key=f"del_{t_id}", help=f"Excluir tarefa #{t_id} do painel"):
-                # Remove do estado da sessão
-                del st.session_state.tarefas_kanban[t_id]
-                # Salva a lista atualizada de volta no JSON
-                salvar_tarefas(st.session_state.tarefas_kanban)
-                # Força o recarregamento imediato para sumir com o card da tela
-                st.rerun()
+            with c_txt:
+                # O card agora vai praticamente até o final da tela
+                st.markdown(f"""
+                <div class="kanban-box" style="margin-bottom: 0px; border-right: none; border-radius: 6px 0px 0px 6px;">
+                    <strong>⚠️ Tarefa #{t_id} Criada {info['data_criacao']}</strong> | 
+                    <span>Assunto: {info['titulo']}</span> | 
+                    <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with c_btn:
+                # O botão de deletar fica "embutido" no canto direito do bloco
+                st.markdown(f"""
+                <div style="background-color: #1e293b; height: 100%; min-height: 53px; display: flex; align-items: center; justify-content: center; border-radius: 0px 6px 6px 0px; padding-right: 10px;">
+                """, unsafe_allow_html=True)
+                
+                if st.button("🗑️", key=f"del_{t_id}", help=f"Excluir tarefa #{t_id} do painel"):
+                    del st.session_state.tarefas_kanban[t_id]
+                    salvar_tarefas(st.session_state.tarefas_kanban)
+                    st.rerun()
+                    
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+        # Pequeno espaçador entre um card e outro
+        st.write("")
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
+
     # ==============================
 # TABELA DE AGENTES (EXIBIDA APENAS UMA VEZ)
 # ==============================
