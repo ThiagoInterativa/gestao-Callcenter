@@ -21,7 +21,6 @@ MONITOR_URL = "https://pabx.evence.com.br/callcenter/monitoramentoAgentes/detalh
 KANBAN_LOGIN_URL = "https://kanban.interativanet.com.br/?controller=AuthController&action=check"
 KANBAN_URL = "https://kanban.interativanet.com.br/?controller=ProjectOverviewController&action=show&project_id=1&search=status%3Aopen"
 
-# Usando as variáveis idênticas ao primeiro código para evitar qualquer KeyError
 EMAIL = st.secrets["EMAIL"]
 SENHA = st.secrets["SENHA"]
 
@@ -49,14 +48,14 @@ body {
     color: white;
 }
 
-/* CARD MENOR */
+/* CARDS CONFIGURÁVEIS (TAMANHO AJUSTADO) */
 .small-card {
-    padding: 35px;
+    padding: 22px;
     border-radius: 8px;
     text-align: center;
-    font-size: 20px;
+    font-size: 24px;
     font-weight: bold;
-    line-height: 1.2;
+    line-height: 1.3;
 }
 
 .green { background-color: #16a34a; }
@@ -83,13 +82,9 @@ body {
 
 # ==============================
 # SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
-# ==============================# ==============================
-# SISTEMA DE ÁUDIO CORRIGIDO (FORÇADO COM TRATAMENTO DE PERMISSÃO)
 # ==============================
 def play_sound():
-    # Usando uma URL estável e direta de um bipe limpo de notificação
     audio_url = "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"
-    
     sound_html = f"""
     <audio id="noc-alert" src="{audio_url}" preload="auto"></audio>
     <script>
@@ -97,13 +92,12 @@ def play_sound():
             var audio = document.getElementById('noc-alert');
             if (audio) {{
                 audio.volume = 1.0;
-                // Força a reprodução
                 var promise = audio.play();
                 if (promise !== undefined) {{
                     promise.then(function() {{
                         console.log("Áudio reproduzido com sucesso!");
                     }}).catch(function(error) {{
-                        console.log("Autoplay bloqueado pelo navegador. Clique na tela para ativar os sons.", error);
+                        console.log("Autoplay bloqueado pelo navegador.", error);
                     }});
                 }}
             }}
@@ -111,7 +105,7 @@ def play_sound():
     </script>
     """
     st.markdown(sound_html, unsafe_allow_html=True)
-    
+
 # ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
@@ -119,7 +113,9 @@ def carregar_tarefas_salvas():
     if os.path.exists(TAREFAS_FILE):
         try:
             with open(TAREFAS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                dados = json.load(f)
+                if isinstance(dados, dict):
+                    return dados
         except Exception:
             return {}
     return {}
@@ -164,7 +160,6 @@ def login_kanban():
         soup = BeautifulSoup(r.text, "html.parser")
         csrf_token = soup.find("input", {"name": "csrf_token"})
         
-        # Usando EMAIL e SENHA também para autenticar no Kanban
         payload = {
             "username": EMAIL,
             "password": SENHA
@@ -210,7 +205,6 @@ def get_agentes(session):
     except Exception:
         return []
 
-
 def atualizar_kanban(session_kb):
     if not session_kb:
         return
@@ -220,13 +214,11 @@ def atualizar_kanban(session_kb):
         soup = BeautifulSoup(r.text, "html.parser")
         atividades = soup.find_all("div", class_="activity-content")
         
-        # 1. Carrega o estado atual direto do arquivo para garantir que não perdemos nada do passado
+        # Carrega o estado atual para verificação
         tarefas_atuais = carregar_tarefas_salvas()
-        
         houve_alteracao = False
         disparar_som = False
 
-        # 2. Processa as atividades para atualizar o arquivo
         for atividade in reversed(atividades):
             title_p = atividade.find("p", class_="activity-title")
             if not title_p:
@@ -245,7 +237,7 @@ def atualizar_kanban(session_kb):
             desc_div = atividade.find("div", class_="activity-description")
             titulo_tarefa = desc_div.find("p", class_="activity-task-title").get_text(strip=True) if desc_div else "Sem título"
 
-            # Caso 1: Criou a tarefa -> Só adiciona se ela já não existir no nosso banco local
+            # Caso 1: Criou a tarefa
             if "criou a tarefa" in texto_acao:
                 if task_id not in tarefas_atuais:
                     tarefas_atuais[task_id] = {
@@ -256,26 +248,26 @@ def atualizar_kanban(session_kb):
                     houve_alteracao = True
                     disparar_som = True
 
-            # Caso 2: Finalizou a tarefa -> Remove permanentemente do nosso banco local
+            # Caso 2: Finalizou a tarefa
             elif "finalizou a tarefa" in texto_acao:
                 if task_id in tarefas_atuais:
                     del tarefas_atuais[task_id]
                     houve_alteracao = True
 
-        # 3. Se houve qualquer mudança (adição ou remoção), salvamos no JSON e atualizamos a tela
+        # Sincroniza as alterações de forma segura
         if houve_alteracao:
-            st.session_state.tarefas_kanban = tarefas_atuais
             salvar_tarefas(tarefas_atuais)
+            st.session_state.tarefas_kanban = tarefas_atuais
             if disparar_som:
                 st.session_state.play_alert = True
         else:
-            # Garante que o estado do Streamlit use o que está salvo no arquivo
+            # Caso não haja novos registros, garanta que o painel mostre o que está no JSON
             st.session_state.tarefas_kanban = tarefas_atuais
 
     except Exception as e:
         st.sidebar.error(f"Erro ao ler Kanban: {e}")
-        
-        # ==============================
+
+# ==============================
 # INICIALIZAÇÃO DE VARIÁVEIS DO ESTADO
 # ==============================
 st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
@@ -283,8 +275,8 @@ st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', un
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
-if "tarefas_kanban" not in st.session_state:
-    st.session_state.tarefas_kanban = carregar_tarefas_salvas()
+# Forçar o carregamento das tarefas do arquivo físico antes de processar
+st.session_state.tarefas_kanban = carregar_tarefas_salvas()
 
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
@@ -292,7 +284,7 @@ if "play_alert" not in st.session_state:
 # Gerenciador de alerta sonoro
 if st.session_state.play_alert:
     play_sound()
-    st.session_state.play_alert = False  # Limpa o gatilho
+    st.session_state.play_alert = False
 
 # Logins automáticos/Persistidos
 if "session" not in st.session_state or not st.session_state.session:
