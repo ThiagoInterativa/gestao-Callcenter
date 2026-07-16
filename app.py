@@ -210,6 +210,7 @@ def get_agentes(session):
     except Exception:
         return []
 
+
 def atualizar_kanban(session_kb):
     if not session_kb:
         return
@@ -219,10 +220,13 @@ def atualizar_kanban(session_kb):
         soup = BeautifulSoup(r.text, "html.parser")
         atividades = soup.find_all("div", class_="activity-content")
         
-        tarefas_atuais = st.session_state.tarefas_kanban.copy()
+        # 1. Carrega o estado atual direto do arquivo para garantir que não perdemos nada do passado
+        tarefas_atuais = carregar_tarefas_salvas()
+        
         houve_alteracao = False
         disparar_som = False
 
+        # 2. Processa as atividades para atualizar o arquivo
         for atividade in reversed(atividades):
             title_p = atividade.find("p", class_="activity-title")
             if not title_p:
@@ -241,7 +245,7 @@ def atualizar_kanban(session_kb):
             desc_div = atividade.find("div", class_="activity-description")
             titulo_tarefa = desc_div.find("p", class_="activity-task-title").get_text(strip=True) if desc_div else "Sem título"
 
-            # Caso 1: Criou a tarefa
+            # Caso 1: Criou a tarefa -> Só adiciona se ela já não existir no nosso banco local
             if "criou a tarefa" in texto_acao:
                 if task_id not in tarefas_atuais:
                     tarefas_atuais[task_id] = {
@@ -252,22 +256,26 @@ def atualizar_kanban(session_kb):
                     houve_alteracao = True
                     disparar_som = True
 
-            # Caso 2: Finalizou a tarefa
+            # Caso 2: Finalizou a tarefa -> Remove permanentemente do nosso banco local
             elif "finalizou a tarefa" in texto_acao:
                 if task_id in tarefas_atuais:
                     del tarefas_atuais[task_id]
                     houve_alteracao = True
 
+        # 3. Se houve qualquer mudança (adição ou remoção), salvamos no JSON e atualizamos a tela
         if houve_alteracao:
             st.session_state.tarefas_kanban = tarefas_atuais
             salvar_tarefas(tarefas_atuais)
             if disparar_som:
                 st.session_state.play_alert = True
+        else:
+            # Garante que o estado do Streamlit use o que está salvo no arquivo
+            st.session_state.tarefas_kanban = tarefas_atuais
 
     except Exception as e:
         st.sidebar.error(f"Erro ao ler Kanban: {e}")
-
-# ==============================
+        
+        # ==============================
 # INICIALIZAÇÃO DE VARIÁVEIS DO ESTADO
 # ==============================
 st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
