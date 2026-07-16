@@ -155,10 +155,11 @@ def login_kanban():
         soup = BeautifulSoup(r.text, "html.parser")
         csrf_token = soup.find("input", {"name": "csrf_token"})
         
-        payload = {
+       payload = {
             "username": KANBAN_USER,
             "password": KANBAN_PASS
         }
+
         if csrf_token:
             payload["csrf_token"] = csrf_token["value"]
 
