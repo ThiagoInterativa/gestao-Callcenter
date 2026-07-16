@@ -386,14 +386,24 @@ else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
 
 # ==============================
-# ==============================
-# TABELA DE AGENTES
+# TABELA DE AGENTES (CORRIGIDO PARA EXIBIR APENAS UMA VEZ)
 # ==============================
 st.write("---")
 st.subheader("👨‍💻 Agentes de Plantão")
+
+# Criamos o dataframe e exibimos uma única vez
 df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
 st.dataframe(df_agentes, use_container_width=True)
 
+# ==============================
+# AUTO ATUALIZAR CONFIGURÁVEL (SEM GERAR DUPLICAÇÃO)
+# ==============================
+# Usamos um container vazio para evitar o efeito "fantasma" na recarga
+placeholder = st.empty()
+
+# Espera o tempo configurado antes de recarregar a tela
+time.sleep(refresh_rate)
+st.rerun()
 # ==============================
 # AUTO ATUALIZAR CONFIGURÁVEL
 # ==============================
