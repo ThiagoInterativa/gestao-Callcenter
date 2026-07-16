@@ -84,35 +84,28 @@ body {
 """, unsafe_allow_html=True)
 
 # ==============================
-# SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
+# SISTEMA DE ÁUDIO CORRIGIDO (BOTÃO COMPACTO)
 # ==============================
-# ==============================
-# SISTEMA DE ÁUDIO INTERATIVO (LIBERAÇÃO POR CLIQUE)
-# ==============================
-# ==============================
-# SISTEMA DE ÁUDIO CORRIGIDO (MESMO CONTEXTO / IFRAME)
-# ==============================
-def renderizar_sistema_audio():
-    # URL de áudio limpa e direta
+def renderizar_botao_audio():
+    # URL de áudio direta
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
     
-    # Se houver um alerta novo pendente, dizemos ao JS para tocar automaticamente
     tocar_agora = "true" if st.session_state.get("play_alert", False) else "false"
     
+    # Renderiza apenas o botão azul limpo e o elemento de áudio escondido
     sound_html = f"""
-    <div style="background-color: #1e293b; border: 1px solid #3b82f6; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
-        <span style="color: #94a3b8; font-size: 14px; display: block; margin-bottom: 8px;">🔊 Sistema de Alerta Sonoro</span>
+    <div style="display: flex; justify-content: flex-end; align-items: center; height: 40px;">
         <button id="btn-ativar-som" onclick="testarEAtivarSom()" style="
             background-color: #2563eb; 
             color: white; 
             border: none; 
-            padding: 10px 20px; 
+            padding: 8px 16px; 
             border-radius: 6px; 
             font-weight: bold; 
             cursor: pointer;
             font-size: 14px;
             width: 100%;
-            max-width: 250px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         ">🔊 Ativar & Testar Som</button>
     </div>
 
@@ -122,33 +115,30 @@ def renderizar_sistema_audio():
         var audio = document.getElementById('notif-sound');
         var deveTocarAutomatico = {tocar_agora};
 
-        // 1. Função executada ao clicar manualmente no botão
         function testarEAtivarSom() {{
             if (audio) {{
                 audio.volume = 1.0;
                 audio.play()
                     .then(function() {{
-                        console.log("Áudio desbloqueado com sucesso!");
                         alert("✅ Excelente! Som do painel ativado e autorizado com sucesso.");
                     }})
                     .catch(function(err) {{
-                        console.log("Erro ao tocar áudio:", err);
                         alert("❌ Erro ao ativar o som. Verifique se o volume do computador está ligado.");
                     }});
             }}
         }}
 
-        // 2. Lógica de reprodução automática (se o Streamlit sinalizar que há nova tarefa)
         if (deveTocarAutomatico && audio) {{
             audio.volume = 1.0;
             audio.play().catch(function(e) {{
-                console.log("Autoplay bloqueado. Aguardando ativação manual pelo botão.", e);
+                console.log("Autoplay bloqueado pelo navegador.");
             }});
         }}
     </script>
     """
-    st.components.v1.html(sound_html, height=100)
-    # ==============================
+    st.components.v1.html(sound_html, height=50)
+
+# ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
 def carregar_tarefas_salvas():
@@ -200,7 +190,6 @@ def login_kanban():
         soup = BeautifulSoup(r.text, "html.parser")
         csrf_token = soup.find("input", {"name": "csrf_token"})
         
-        # Corrigido o recuo (espaçamento) do dicionário payload aqui:
         payload = {
             "username": KANBAN_USER,
             "password": KANBAN_PASS
@@ -318,13 +307,6 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
-# Renderiza o painel do botão de som de forma isolada e segura
-renderizar_sistema_audio()
-
-# Se o alerta foi disparado nesta rodada, nós limpamos a flag após a renderização
-if st.session_state.play_alert:
-    st.session_state.play_alert = False
-
 # Logins automáticos/Persistidos
 if "session" not in st.session_state or not st.session_state.session:
     st.session_state.session = login()
@@ -416,7 +398,20 @@ if not df_hist.empty:
 # 3. AVISOS DE TAREFAS (FUNDO)
 # ==============================
 st.write("---")
-st.subheader("🔔 Fila de tarefa pendente - Kanban")
+
+# Criamos duas colunas: 75% para o título e 25% para o botão
+col_titulo, col_audio = st.columns([3, 1])
+
+with col_titulo:
+    st.subheader("🔔 Fila de tarefa pendente - Kanban")
+
+with col_audio:
+    # O botão renderiza exatamente ao lado do título!
+    renderizar_botao_audio()
+
+# Se o alerta foi disparado nesta rodada, limpamos a flag
+if st.session_state.get("play_alert", False):
+    st.session_state.play_alert = False
 
 tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
@@ -432,8 +427,8 @@ if tarefas_exibidas:
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
     
-    # ==============================
-# TABELA DE AGENTES (CORRIGIDO PARA EXIBIR APENAS UMA VEZ)
+# ==============================
+# TABELA DE AGENTES (EXIBIDA APENAS UMA VEZ)
 # ==============================
 st.write("---")
 st.subheader("👨‍💻 Agentes de Plantão")
@@ -445,14 +440,8 @@ st.dataframe(df_agentes, use_container_width=True)
 # ==============================
 # AUTO ATUALIZAR CONFIGURÁVEL (SEM GERAR DUPLICAÇÃO)
 # ==============================
-# Usamos um container vazio para evitar o efeito "fantasma" na recarga
 placeholder = st.empty()
 
 # Espera o tempo configurado antes de recarregar a tela
-time.sleep(refresh_rate)
-st.rerun()
-# ==============================
-# AUTO ATUALIZAR CONFIGURÁVEL
-# ==============================
 time.sleep(refresh_rate)
 st.rerun()
