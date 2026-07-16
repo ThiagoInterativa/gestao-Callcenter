@@ -400,37 +400,55 @@ if not df_hist.empty:
 # ==============================
 # 3. AVISOS DE TAREFAS (FUNDO)
 # ==============================
+# ==============================
+# 3. AVISOS DE TAREFAS (FUNDO)
+# ==============================
 st.write("---")
 
-# Criamos duas colunas: 75% para o título e 25% para o botão
+# Criamos duas colunas para o título e o botão de ativar som
 col_titulo, col_audio = st.columns([3, 1])
 
 with col_titulo:
     st.subheader("🔔 Fila de tarefa pendente - Kanban")
 
 with col_audio:
-    # O botão renderiza exatamente ao lado do título!
     renderizar_botao_audio()
 
 # Se o alerta foi disparado nesta rodada, limpamos a flag
 if st.session_state.get("play_alert", False):
     st.session_state.play_alert = False
 
+# Carrega as tarefas do estado
 tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 if tarefas_exibidas:
-    for t_id, info in tarefas_exibidas.items():
-        st.markdown(f"""
-        <div class="kanban-box">
-            <strong>⚠️ Tarefa {t_id} Criada {info['data_criacao']}</strong> | 
-            <span>Assunto: {info['titulo']}</span> | 
-            <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-        </div>
-        """, unsafe_allow_html=True)
+    # Criamos uma cópia para poder deletar itens de forma segura enquanto iteramos
+    for t_id, info in list(tarefas_exibidas.items()):
+        # Criamos duas colunas para cada tarefa: uma grande para o texto, uma pequena para o botão de deletar
+        col_txt, col_del = st.columns([9, 1])
+        
+        with col_txt:
+            st.markdown(f"""
+            <div class="kanban-box">
+                <strong>⚠️ Tarefa #{t_id} Criada {info['data_criacao']}</strong> | 
+                <span>Assunto: {info['titulo']}</span> | 
+                <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col_del:
+            # Botão invisível/alinhado para exclusão manual
+            st.write("") # Pequeno espaçador para alinhar verticalmente com a caixa
+            if st.button("🗑️", key=f"del_{t_id}", help=f"Excluir tarefa #{t_id} do painel"):
+                # Remove do estado da sessão
+                del st.session_state.tarefas_kanban[t_id]
+                # Salva a lista atualizada de volta no JSON
+                salvar_tarefas(st.session_state.tarefas_kanban)
+                # Força o recarregamento imediato para sumir com o card da tela
+                st.rerun()
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
-    
-# ==============================
+    # ==============================
 # TABELA DE AGENTES (EXIBIDA APENAS UMA VEZ)
 # ==============================
 st.write("---")
