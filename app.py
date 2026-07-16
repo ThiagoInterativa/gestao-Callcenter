@@ -86,7 +86,6 @@ body {
 # SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
 # ==============================
 def play_sound():
-    # Usando um arquivo de som de notificação MP3 limpo e público
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
     sound_html = f"""
     <audio id="notif-sound" src="{audio_url}" preload="auto"></audio>
@@ -155,7 +154,8 @@ def login_kanban():
         soup = BeautifulSoup(r.text, "html.parser")
         csrf_token = soup.find("input", {"name": "csrf_token"})
         
-       payload = {
+        # Corrigido o recuo (espaçamento) do dicionário payload aqui:
+        payload = {
             "username": KANBAN_USER,
             "password": KANBAN_PASS
         }
@@ -373,7 +373,6 @@ st.subheader("🔔 Fila de Atendimento - Kanban")
 tarefas_exibidas = st.session_state.tarefas_kanban
 
 if tarefas_exibidas:
-    # Mostra os avisos em um formato inline limpo
     for t_id, info in tarefas_exibidas.items():
         st.markdown(f"""
         <div class="kanban-box">
