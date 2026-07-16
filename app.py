@@ -86,23 +86,41 @@ body {
 # ==============================
 # SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
 # ==============================
+# ==============================
+# SISTEMA DE ÁUDIO INTERATIVO (LIBERAÇÃO POR CLIQUE)
+# ==============================
 def play_sound():
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
     sound_html = f"""
     <audio id="notif-sound" src="{audio_url}" preload="auto"></audio>
     <script>
+        // Função para forçar a permissão e tocar um bipe rápido
+        function ativarAudioESom() {{
+            var audio = document.getElementById('notif-sound');
+            if (audio) {{
+                audio.volume = 1.0;
+                audio.play().then(function() {{
+                    console.log('Permissão de áudio concedida pelo clique!');
+                    alert('🔊 Som de alerta ativado com sucesso para este painel!');
+                }}).catch(function(error) {{
+                    console.log('Erro ao tentar tocar áudio:', error);
+                }});
+            }}
+        }}
+
+        // Se o sistema de alerta estiver ativo no Streamlit, tenta tocar automaticamente
         var playPromise = document.getElementById('notif-sound').play();
         if (playPromise !== undefined) {{
             playPromise.then(function() {{
-                console.log('Alerta sonoro executado com sucesso.');
+                console.log('Alerta sonoro executado automaticamente.');
             }}).catch(function(error) {{
-                console.log('Interação do usuário necessária para o áudio: ', error);
+                console.log('Autoplay bloqueado. Aguardando interação do usuário.');
             }});
         }}
     </script>
     """
     st.markdown(sound_html, unsafe_allow_html=True)
-
+    
 # ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
