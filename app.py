@@ -23,6 +23,7 @@ KANBAN_URL = "https://kanban.interativanet.com.br/?controller=ProjectOverviewCon
 
 EMAIL = st.secrets["EMAIL"]
 SENHA = st.secrets["SENHA"]
+
 KANBAN_USER = st.secrets["KANBAN_USER"]
 KANBAN_PASS = st.secrets["KANBAN_PASS"]
 
