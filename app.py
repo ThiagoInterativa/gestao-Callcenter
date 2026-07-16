@@ -50,9 +50,9 @@ body {
     color: white;
 }
 
-/* CARD MENOR */
+/* CARD  */
 .small-card {
-    padding: 15px;
+    padding: 35px;
     border-radius: 8px;
     text-align: center;
     font-size: 20px;
