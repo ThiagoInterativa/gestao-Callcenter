@@ -51,7 +51,7 @@ body {
 
 /* CARD MENOR */
 .small-card {
-    padding: 15px;
+    padding: 25px;
     border-radius: 8px;
     text-align: center;
     font-size: 20px;
