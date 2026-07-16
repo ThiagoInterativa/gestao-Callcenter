@@ -83,24 +83,35 @@ body {
 
 # ==============================
 # SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
+# ==============================# ==============================
+# SISTEMA DE ÁUDIO CORRIGIDO (FORÇADO COM TRATAMENTO DE PERMISSÃO)
 # ==============================
 def play_sound():
-    audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
+    # Usando uma URL estável e direta de um bipe limpo de notificação
+    audio_url = "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"
+    
     sound_html = f"""
-    <audio id="notif-sound" src="{audio_url}" preload="auto"></audio>
+    <audio id="noc-alert" src="{audio_url}" preload="auto"></audio>
     <script>
-        var playPromise = document.getElementById('notif-sound').play();
-        if (playPromise !== undefined) {{
-            playPromise.then(function() {{
-                console.log('Alerta sonoro executado com sucesso.');
-            }}).catch(function(error) {{
-                console.log('Interação do usuário necessária para o áudio: ', error);
-            }});
-        }}
+        (function() {{
+            var audio = document.getElementById('noc-alert');
+            if (audio) {{
+                audio.volume = 1.0;
+                // Força a reprodução
+                var promise = audio.play();
+                if (promise !== undefined) {{
+                    promise.then(function() {{
+                        console.log("Áudio reproduzido com sucesso!");
+                    }}).catch(function(error) {{
+                        console.log("Autoplay bloqueado pelo navegador. Clique na tela para ativar os sons.", error);
+                    }});
+                }}
+            }}
+        }})();
     </script>
     """
     st.markdown(sound_html, unsafe_allow_html=True)
-
+    
 # ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
