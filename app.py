@@ -396,11 +396,23 @@ if not df_hist.empty:
     ).properties(height=320)
 
     st.altair_chart(chart, use_container_width=True)
-
 # ==============================
 # 3. AVISOS DE TAREFAS (FUNDO)
 # ==============================
 st.write("---")
+
+# Tratamento do clique de exclusão via Query Params (evita bugs de renderização de botões nativos)
+params = st.query_params
+if "deletar_tarefa" in params:
+    task_id_to_del = params["deletar_tarefa"]
+    tarefas_atuais = st.session_state.get("tarefas_kanban", {})
+    if task_id_to_del in tarefas_atuais:
+        del tarefas_atuais[task_id_to_del]
+        salvar_tarefas(tarefas_atuais)
+        st.session_state.tarefas_kanban = tarefas_atuais
+    # Limpa o parâmetro da URL para não ficar em loop e recarrega
+    st.query_params.clear()
+    st.rerun()
 
 # Criamos duas colunas para o título e o botão de ativar som
 col_titulo, col_audio = st.columns([3, 1])
@@ -420,31 +432,36 @@ tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 if tarefas_exibidas:
     for t_id, info in list(tarefas_exibidas.items()):
-        # Criamos um bloco que agrupa o texto e o botão de forma limpa
-        col_texto, col_botao = st.columns([18, 1.2])
-        
-        with col_texto:
-            st.markdown(f"""
-            <div class="kanban-box" style="margin-bottom: 0px; border-radius: 6px 0px 0px 6px; height: 48px; display: flex; align-items: center; padding-left: 15px;">
-                <span>⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | <strong>Assunto:</strong> {info['titulo']} | <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span></span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col_botao:
-            # Correção do container HTML fechado antes do botão do Streamlit ser renderizado
-            st.markdown("""
-            <div style="background-color: #1e293b; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 0px 6px 6px 0px; border-left: none;">
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # O botão de deletar alinha perfeitamente sem conflitar com tags abertas
-            if st.button("🗑️", key=f"del_{t_id}", help=f"Excluir tarefa #{t_id} do painel"):
-                del st.session_state.tarefas_kanban[t_id]
-                salvar_tarefas(st.session_state.tarefas_kanban)
-                st.rerun()
-            
-        # Pequeno espaçamento vertical entre as tarefas do painel
-        st.write("")
+        # Exibição unificada em HTML com o botão de lixeira posicionado absolutamente no canto direito
+        st.markdown(f"""
+        <div class="kanban-box" style="
+            position: relative; 
+            margin-bottom: 12px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            height: 48px;
+            padding-right: 50px; /* Garante que o texto não passe por cima da lixeira */
+        ">
+            <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                <strong>Assunto:</strong> {info['titulo']} | 
+                <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+            </span>
+            <a href="?deletar_tarefa={t_id}" target="_self" style="
+                position: absolute;
+                right: 18px;
+                top: 50%;
+                transform: translateY(-50%);
+                text-decoration: none;
+                font-size: 18px;
+                cursor: pointer;
+                transition: transform 0.1s ease;
+            " title="Excluir tarefa #{t_id} do painel">
+                🗑️
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
     
