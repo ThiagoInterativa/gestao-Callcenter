@@ -21,6 +21,7 @@ MONITOR_URL = "https://pabx.evence.com.br/callcenter/monitoramentoAgentes/detalh
 KANBAN_LOGIN_URL = "https://kanban.interativanet.com.br/?controller=AuthController&action=check"
 KANBAN_URL = "https://kanban.interativanet.com.br/?controller=ProjectOverviewController&action=show&project_id=1&search=status%3Aopen"
 
+# Usando as variáveis idênticas ao primeiro código para evitar qualquer KeyError
 EMAIL = st.secrets["EMAIL"]
 SENHA = st.secrets["SENHA"]
 
@@ -48,14 +49,14 @@ body {
     color: white;
 }
 
-/* CARDS CONFIGURÁVEIS (TAMANHO AJUSTADO) */
+/* CARD MENOR */
 .small-card {
-    padding: 22px;
+    padding: 15px;
     border-radius: 8px;
     text-align: center;
-    font-size: 24px;
+    font-size: 20px;
     font-weight: bold;
-    line-height: 1.3;
+    line-height: 1.2;
 }
 
 .green { background-color: #16a34a; }
@@ -84,24 +85,18 @@ body {
 # SISTEMA DE ÁUDIO CORRIGIDO (HTML5 + JS TRIGGER)
 # ==============================
 def play_sound():
-    audio_url = "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"
+    audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
     sound_html = f"""
-    <audio id="noc-alert" src="{audio_url}" preload="auto"></audio>
+    <audio id="notif-sound" src="{audio_url}" preload="auto"></audio>
     <script>
-        (function() {{
-            var audio = document.getElementById('noc-alert');
-            if (audio) {{
-                audio.volume = 1.0;
-                var promise = audio.play();
-                if (promise !== undefined) {{
-                    promise.then(function() {{
-                        console.log("Áudio reproduzido com sucesso!");
-                    }}).catch(function(error) {{
-                        console.log("Autoplay bloqueado pelo navegador.", error);
-                    }});
-                }}
-            }}
-        }})();
+        var playPromise = document.getElementById('notif-sound').play();
+        if (playPromise !== undefined) {{
+            playPromise.then(function() {{
+                console.log('Alerta sonoro executado com sucesso.');
+            }}).catch(function(error) {{
+                console.log('Interação do usuário necessária para o áudio: ', error);
+            }});
+        }}
     </script>
     """
     st.markdown(sound_html, unsafe_allow_html=True)
@@ -113,9 +108,7 @@ def carregar_tarefas_salvas():
     if os.path.exists(TAREFAS_FILE):
         try:
             with open(TAREFAS_FILE, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-                if isinstance(dados, dict):
-                    return dados
+                return json.load(f)
         except Exception:
             return {}
     return {}
@@ -160,6 +153,7 @@ def login_kanban():
         soup = BeautifulSoup(r.text, "html.parser")
         csrf_token = soup.find("input", {"name": "csrf_token"})
         
+        # Usando EMAIL e SENHA também para autenticar no Kanban
         payload = {
             "username": EMAIL,
             "password": SENHA
@@ -214,8 +208,7 @@ def atualizar_kanban(session_kb):
         soup = BeautifulSoup(r.text, "html.parser")
         atividades = soup.find_all("div", class_="activity-content")
         
-        # Carrega o estado atual para verificação
-        tarefas_atuais = carregar_tarefas_salvas()
+        tarefas_atuais = st.session_state.tarefas_kanban.copy()
         houve_alteracao = False
         disparar_som = False
 
@@ -254,15 +247,11 @@ def atualizar_kanban(session_kb):
                     del tarefas_atuais[task_id]
                     houve_alteracao = True
 
-        # Sincroniza as alterações de forma segura
         if houve_alteracao:
-            salvar_tarefas(tarefas_atuais)
             st.session_state.tarefas_kanban = tarefas_atuais
+            salvar_tarefas(tarefas_atuais)
             if disparar_som:
                 st.session_state.play_alert = True
-        else:
-            # Caso não haja novos registros, garanta que o painel mostre o que está no JSON
-            st.session_state.tarefas_kanban = tarefas_atuais
 
     except Exception as e:
         st.sidebar.error(f"Erro ao ler Kanban: {e}")
@@ -275,8 +264,8 @@ st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', un
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
-# Forçar o carregamento das tarefas do arquivo físico antes de processar
-st.session_state.tarefas_kanban = carregar_tarefas_salvas()
+if "tarefas_kanban" not in st.session_state:
+    st.session_state.tarefas_kanban = carregar_tarefas_salvas()
 
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
@@ -284,7 +273,7 @@ if "play_alert" not in st.session_state:
 # Gerenciador de alerta sonoro
 if st.session_state.play_alert:
     play_sound()
-    st.session_state.play_alert = False
+    st.session_state.play_alert = False  # Limpa o gatilho
 
 # Logins automáticos/Persistidos
 if "session" not in st.session_state or not st.session_state.session:
