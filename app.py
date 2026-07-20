@@ -86,14 +86,10 @@ body {
 # ==============================
 # SISTEMA DE ÁUDIO CORRIGIDO (BOTÃO COMPACTO)
 # ==============================
-
 def renderizar_botao_audio():
-    # URL de áudio direta
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
-    
     tocar_agora = "true" if st.session_state.get("play_alert", False) else "false"
     
-    # Reduzimos o padding, a fonte e definimos max-width para 180px (botão menor)
     sound_html = f"""
     <div style="display: flex; justify-content: flex-end; align-items: center; height: 40px;">
         <button id="btn-ativar-som" onclick="testarEAtivarSom()" style="
@@ -138,7 +134,6 @@ def renderizar_botao_audio():
         }}
     </script>
     """
-    # Altura pequena (50px) para não empurrar os elementos para baixo
     st.components.v1.html(sound_html, height=50)
     
 # ==============================
@@ -239,6 +234,66 @@ def get_agentes(session):
     except Exception:
         return []
 
+def login_e_get_status_whatsflux():
+    login_api_url = "https://api.whatsflux.com.br/auth/login"
+    users_api_url = "https://api.whatsflux.com.br/users"
+    
+    session = requests.Session()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json;charset=UTF-8",
+        "Referer": "https://app.whatsflux.com.br/login",
+        "Origin": "https://app.whatsflux.com.br"
+    }
+    session.headers.update(headers)
+    
+    tecnicos_alvo = ["Leonardo", "Matheus", "Gabriel", "Ramon", "Thiago", "Vinicius"]
+    status_tecnicos = {nome: "offline" for nome in tecnicos_alvo}
+    
+    try:
+        email_whats = st.secrets["WHATSFLUX_EMAIL"]
+        senha_whats = st.secrets["WHATSFLUX_SENHA"]
+    except KeyError:
+        return "Configure o Secrets (WHATSFLUX_EMAIL / WHATSFLUX_SENHA)", {}
+
+    try:
+        payload = {"email": email_whats, "password": senha_whats}
+        res_login = session.post(login_api_url, json=payload, timeout=10)
+        
+        if res_login.status_code not in [200, 201, 302]:
+            return f"Falha Auth (HTTP {res_login.status_code})", {}
+
+        dados_resposta = res_login.json()
+        token = dados_resposta.get("token") or dados_resposta.get("access_token")
+        if token:
+            session.headers.update({"Authorization": f"Bearer {token}"})
+
+        res_users = session.get(users_api_url, timeout=10)
+        if res_users.status_code != 200:
+            return f"Erro API Users ({res_users.status_code})", {}
+            
+        resposta_json = res_users.json()
+        dados_usuarios = resposta_json.get("users", [])
+
+        def normalizar(texto):
+            if not texto: return ""
+            return unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII').lower().strip()
+
+        for usuario in dados_usuarios:
+            nome_usuario = usuario.get("name", "")
+            is_online = usuario.get("online", False)
+            nome_usuario_limpo = normalizar(nome_usuario)
+            
+            for tecnico in tecnicos_alvo:
+                tecnico_limpo = normalizar(tecnico)
+                if tecnico_limpo in nome_usuario_limpo and is_online:
+                    status_tecnicos[tecnico] = "online"
+
+        return "OK", status_tecnicos
+    except Exception as e:
+        return f"Erro de Conexão ({str(e)[:20]})", {}
+
 def atualizar_kanban(session_kb):
     if not session_kb:
         return
@@ -270,7 +325,6 @@ def atualizar_kanban(session_kb):
             desc_div = atividade.find("div", class_="activity-description")
             titulo_tarefa = desc_div.find("p", class_="activity-task-title").get_text(strip=True) if desc_div else "Sem título"
 
-            # Caso 1: Criou a tarefa
             if "criou a tarefa" in texto_acao:
                 if task_id not in tarefas_atuais:
                     tarefas_atuais[task_id] = {
@@ -281,7 +335,6 @@ def atualizar_kanban(session_kb):
                     houve_alteracao = True
                     disparar_som = True
 
-            # Caso 2: Finalizou a tarefa
             elif "finalizou a tarefa" in texto_acao:
                 if task_id in tarefas_atuais:
                     del tarefas_atuais[task_id]
@@ -299,8 +352,6 @@ def atualizar_kanban(session_kb):
 # ==============================
 # INICIALIZAÇÃO DE VARIÁVEIS DO ESTADO
 # ==============================
-st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
-
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
@@ -310,7 +361,6 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
-# Logins automáticos/Persistidos
 if "session" not in st.session_state or not st.session_state.session:
     st.session_state.session = login()
 
@@ -324,84 +374,11 @@ if not session:
     st.error("Erro no login do PABX")
     st.stop()
 
-# Busca e atualiza as APIs
+# Coleta de dados antes de renderizar
 agentes = get_agentes(session)
 atualizar_kanban(session_kb)
 
-# Contagem
-livres = sum(1 for _, s in agentes if s == "livre")
-ocupados = sum(1 for _, s in agentes if s == "ocupado")
-pausa = sum(1 for _, s in agentes if s == "pausa")
-
-agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
-
-# Salva histórico de NOC
-registro = {
-    "time": agora_br,
-    "livres": int(livres),
-    "ocupados": int(ocupados),
-    "pausa": int(pausa)
-}
-st.session_state.historico.append(registro)
-
-# ==============================
-# 1. CARDS REDUZIDOS (TOPO)
-# ==============================
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown(f'<div class="small-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
-
-with col2:
-    st.markdown(f'<div class="small-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f'<div class="small-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
-
-st.write("")  # Espaçador
-
-# ==============================
-# 2. GRÁFICO (CENTRO)
-# ==============================
-df_hist = pd.DataFrame(st.session_state.historico)
-
-if not df_hist.empty:
-    df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
-    df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
-    
-    for col in ["livres", "ocupados", "pausa"]:
-        if col not in df_hist.columns:
-            df_hist[col] = 0
-            
-    df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
-
-    series = ["livres", "ocupados"]
-    if df_hist["pausa"].sum() > 0:
-        series.append("pausa")
-
-    df_plot = df_hist.copy()
-    for col in ["livres", "ocupados"]:
-        df_plot[col] = df_plot[col].replace(0, None)
-
-    df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
-    
-    color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
-    color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
-
-    chart = alt.Chart(df_melt).mark_line(point=True).encode(
-        x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
-        y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
-        color=alt.Color("Status:N", scale=color_scale),
-        tooltip=["time:T", "Status", "Quantidade"]
-    ).properties(height=320)
-
-    st.altair_chart(chart, use_container_width=True)
-# ==============================
-# 3. AVISOS DE TAREFAS (FUNDO)
-# ==============================
-st.write("---")
-
-# Tratamento do clique de exclusão via Query Params (evita bugs de renderização de botões nativos)
+# Tratamento do clique de exclusão via Query Params
 params = st.query_params
 if "deletar_tarefa" in params:
     task_id_to_del = params["deletar_tarefa"]
@@ -410,76 +387,146 @@ if "deletar_tarefa" in params:
         del tarefas_atuais[task_id_to_del]
         salvar_tarefas(tarefas_atuais)
         st.session_state.tarefas_kanban = tarefas_atuais
-    # Limpa o parâmetro da URL para não ficar em loop e recarrega
     st.query_params.clear()
     st.rerun()
 
-# Criamos duas colunas para o título e o botão de ativar som
-col_titulo, col_audio = st.columns([3, 1])
+# 🟢 RENDERIZAÇÃO EM CONTAINER ÚNICO (Impede duplicações de tela)
+conteudo_painel = st.empty()
 
-with col_titulo:
-    st.subheader("🔔 Fila de tarefa pendente - Kanban")
+with conteudo_painel.container():
+    st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
 
-with col_audio:
-    renderizar_botao_audio()
+    # Métricas
+    livres = sum(1 for _, s in agentes if s == "livre")
+    ocupados = sum(1 for _, s in agentes if s == "ocupado")
+    pausa = sum(1 for _, s in agentes if s == "pausa")
+    agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-# Se o alerta foi disparado nesta rodada, limpamos a flag
-if st.session_state.get("play_alert", False):
-    st.session_state.play_alert = False
+    # Salva histórico
+    st.session_state.historico.append({
+        "time": agora_br,
+        "livres": int(livres),
+        "ocupados": int(ocupados),
+        "pausa": int(pausa)
+    })
 
-# Carrega as tarefas do estado
-tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
+    # 1. CARDS DO TOPO
+    col1, col2, col3 = st.columns(3)
+    col1.markdown(f'<div class="small-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
+    col2.markdown(f'<div class="small-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
+    col3.markdown(f'<div class="small-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
-if tarefas_exibidas:
-    for t_id, info in list(tarefas_exibidas.items()):
-        # Exibição unificada em HTML com o botão de lixeira posicionado absolutamente no canto direito
-        st.markdown(f"""
-        <div class="kanban-box" style="
-            position: relative; 
-            margin-bottom: 12px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            height: 48px;
-            padding-right: 50px; /* Garante que o texto não passe por cima da lixeira */
-        ">
-            <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                <strong>Assunto:</strong> {info['titulo']} | 
-                <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-            </span>
-            <a href="?deletar_tarefa={t_id}" target="_self" style="
-                position: absolute;
-                right: 18px;
-                top: 50%;
-                transform: translateY(-50%);
-                text-decoration: none;
-                font-size: 18px;
-                cursor: pointer;
-                transition: transform 0.1s ease;
-            " title="Excluir tarefa #{t_id} do painel">
-                🗑️
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
-else:
-    st.info("Nenhuma tarefa pendente registrada no painel.")
-    
-# ==============================
-# TABELA DE AGENTES (CORRIGIDO: INDEPENDENTE DO ELSE)
-# ==============================
-st.write("---")
-st.subheader("👨‍💻 Agentes de Plantão")
+    st.write("") 
 
-# Exibição unificada da lista de agentes no final da tela
-df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
-st.dataframe(df_agentes, use_container_width=True)
+    # 2. GRÁFICO (CENTRO)
+    df_hist = pd.DataFrame(st.session_state.historico)
+    if not df_hist.empty:
+        df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
+        df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
+        
+        for col in ["livres", "ocupados", "pausa"]:
+            if col not in df_hist.columns: df_hist[col] = 0
+            
+        df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
+
+        series = ["livres", "ocupados"]
+        if df_hist["pausa"].sum() > 0:
+            series.append("pausa")
+
+        df_plot = df_hist.copy()
+        for col in ["livres", "ocupados"]:
+            df_plot[col] = df_plot[col].replace(0, None)
+
+        df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
+        
+        color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
+        color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
+
+        chart = alt.Chart(df_melt).mark_line(point=True).encode(
+            x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
+            y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
+            color=alt.Color("Status:N", scale=color_scale),
+            tooltip=["time:T", "Status", "Quantidade"]
+        ).properties(height=320)
+
+        st.altair_chart(chart, use_container_width=True)
+
+    # 3. STATUS DO SUPORTE (WHATSFLUX)
+    st.write("---")
+    msg_retorno, status_whats = login_e_get_status_whatsflux()
+    st.subheader("👥 Status do Suporte Técnico (WhatsFlux)")
+
+    if "OK" in msg_retorno:
+        colunas_tecnicos = st.columns(len(status_whats))
+        for col, (tecnico, status) in zip(colunas_tecnicos, status_whats.items()):
+            with col:
+                badge = '<span style="color: #4ade80; font-weight: bold;">🟢 ONLINE</span>' if status == "online" else '<span style="color: #f87171; font-weight: bold;">🔴 OFFLINE</span>'
+                st.markdown(f"""
+                <div style="background-color: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: center;">
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px; color: #f8fafc;">{tecnico}</div>
+                    <div>{badge}</div>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.error(f"Erro WhatsFlux: {msg_retorno}")
+
+    # 4. AVISOS DE TAREFAS (KANBAN)
+    st.write("---")
+    col_titulo, col_audio = st.columns([3, 1])
+
+    with col_titulo:
+        st.subheader("🔔 Fila de tarefa pendente - Kanban")
+
+    with col_audio:
+        renderizar_botao_audio()
+
+    if st.session_state.get("play_alert", False):
+        st.session_state.play_alert = False
+
+    tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
+
+    if tarefas_exibidas:
+        for t_id, info in list(tarefas_exibidas.items()):
+            st.markdown(f"""
+            <div class="kanban-box" style="
+                position: relative; 
+                margin-bottom: 12px; 
+                display: flex; 
+                align-items: center; 
+                justify-content: space-between; 
+                height: 48px;
+                padding-right: 50px;
+            ">
+                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                    <strong>Assunto:</strong> {info['titulo']} | 
+                    <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                </span>
+                <a href="?deletar_tarefa={t_id}" target="_self" style="
+                    position: absolute;
+                    right: 18px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    text-decoration: none;
+                    font-size: 18px;
+                    cursor: pointer;
+                    transition: transform 0.1s ease;
+                " title="Excluir tarefa #{t_id} do painel">
+                    🗑️
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("Nenhuma tarefa pendente registrada no painel.")
+
+    # 5. TABELA DE AGENTES PABX
+    st.write("---")
+    st.subheader("👨‍💻 Agentes de Plantão")
+    df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
+    st.dataframe(df_agentes, use_container_width=True)
 
 # ==============================
 # AUTO ATUALIZAR CONFIGURÁVEL
 # ==============================
-placeholder = st.empty()
-
-# Espera o tempo configurado antes de recarregar a tela
 time.sleep(refresh_rate)
 st.rerun()
