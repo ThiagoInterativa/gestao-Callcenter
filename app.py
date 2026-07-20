@@ -367,18 +367,9 @@ if "session" not in st.session_state or not st.session_state.session:
 if "session_kanban" not in st.session_state or not st.session_state.session_kanban:
     st.session_state.session_kanban = login_kanban()
 
-session = st.session_state.session
-session_kb = st.session_state.session_kanban
-
-if not session:
-    st.error("Erro no login do PABX")
-    st.stop()
-
-# Coleta de dados antes de renderizar
-agentes = get_agentes(session)
-atualizar_kanban(session_kb)
-
-# Tratamento do clique de exclusão via Query Params
+# ==============================
+# TRATAMENTO DE EXCLUSÃO (NO TOPO)
+# ==============================
 params = st.query_params
 if "deletar_tarefa" in params:
     task_id_to_del = params["deletar_tarefa"]
@@ -390,7 +381,18 @@ if "deletar_tarefa" in params:
     st.query_params.clear()
     st.rerun()
 
-# 🟢 RENDERIZAÇÃO EM CONTAINER ÚNICO (Impede duplicações de tela)
+session = st.session_state.session
+session_kb = st.session_state.session_kanban
+
+if not session:
+    st.error("Erro no login do PABX")
+    st.stop()
+
+# Coleta de dados antes de renderizar
+agentes = get_agentes(session)
+atualizar_kanban(session_kb)
+
+# 🟢 CONTAINER ÚNICO PRINCIPAL (Evita duplicações na tela)
 conteudo_painel = st.empty()
 
 with conteudo_painel.container():
@@ -526,7 +528,7 @@ with conteudo_painel.container():
     st.dataframe(df_agentes, use_container_width=True)
 
 # ==============================
-# AUTO ATUALIZAR CONFIGURÁVEL
+# AUTO ATUALIZAR CONFIGURÁVEL SEGURO
 # ==============================
 time.sleep(refresh_rate)
 st.rerun()
