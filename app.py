@@ -73,33 +73,46 @@ body {
 }
 
 /* CONTAINER DE TAREFA ESTILIZADO */
-/* =====================================================
-   CARD DAS TAREFAS
-   Alteração apenas visual
-===================================================== */
-
-.kanban-box{
-
-    background:#1e293b;
-
-    border-left:5px solid #3b82f6;
-
-    border-radius:8px;
-
-    padding:14px 18px;
-
-    margin-bottom:8px;
-
-    display:flex;
-
-    align-items:center;
-
-    color:white;
-
-    font-size:15px;
-
-    min-height:50px;
+.kanban-box {
+    background: #1e293b;
+    border-left: 5px solid #3b82f6;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: white;
+    font-size: 15px;
+    min-height: 48px;
+    box-sizing: border-box;
 }
+
+/* ESTILIZAÇÃO DOS BOTOES INTERNOS DO CARD */
+.kanban-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-icon-action {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    text-decoration: none;
+    transition: transform 0.1s ease;
+}
+
+.btn-icon-action:hover {
+    transform: scale(1.2);
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ==============================
 # SISTEMA DE ÁUDIO CORRIGIDO
@@ -111,11 +124,14 @@ def renderizar_botao_audio():
     sound_html = f"""
     <div style="display: flex; justify-content: flex-end; align-items: center; height: 40px;">
         <button id="btn-ativar-som" onclick="testarEAtivarSom()" style="
-          background:#2563eb;
-border-radius:8px;
-height:40px;
-font-weight:600;
-padding:0 18px;
+            background:#2563eb;
+            color:white;
+            border:none;
+            border-radius:8px;
+            height:40px;
+            font-weight:600;
+            padding:0 18px;
+            cursor:pointer;
         ">🔊 Ativar & Testar Som</button>
     </div>
 
@@ -386,9 +402,15 @@ if "session_kanban" not in st.session_state or not st.session_state.session_kanb
     st.session_state.session_kanban = login_kanban()
 
 # ==============================
-# TRATAMENTO DE EXCLUSÃO (NO TOPO)
+# TRATAMENTO DE AÇÕES (EDITAR E EXCLUIR NO TOPO)
 # ==============================
 params = st.query_params
+
+if "editar_tarefa" in params:
+    st.session_state.editando_id = params["editar_tarefa"]
+    st.query_params.clear()
+    st.rerun()
+
 if "deletar_tarefa" in params:
     task_id_to_del = params["deletar_tarefa"]
     tarefas_atuais = st.session_state.get("tarefas_kanban", {})
@@ -525,97 +547,30 @@ if tarefas_exibidas:
                     st.session_state.editando_id = None
                     st.rerun()
         else:
-           
             # =====================================================
-# LAYOUT DA TAREFA
-# Alteração apenas visual.
-# Toda lógica de editar/excluir permanece igual.
-# =====================================================
+            # LAYOUT DA TAREFA
+            # Toda a linha é montada em uma única caixa HTML/CSS para garantir alinhamento perfeito.
+            # Toda a lógica de edição/exclusão permanece preservada.
+            # =====================================================
+            st.markdown(f"""
+            <div class="kanban-box">
+                <div style="display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-right: 12px;">
+                    <span style="color:#fbbf24; font-size:18px; margin-right: 8px;">⚠️</span>
+                    <span>
+                        <strong>Tarefa #{t_id}</strong> &nbsp;Criada {info['data_criacao']} &nbsp;|&nbsp; 
+                        <strong>Assunto:</strong> {info['titulo']} &nbsp;|&nbsp; 
+                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                    </span>
+                </div>
+                <div class="kanban-actions">
+                    <a href="?editar_tarefa={t_id}" target="_self" class="btn-icon-action" title="Editar Tarefa #{t_id}">✏️</a>
+                    <a href="?deletar_tarefa={t_id}" target="_self" class="btn-icon-action" title="Excluir Tarefa #{t_id}">🗑️</a>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.info("Nenhuma tarefa pendente registrada no painel.")
 
-col_card, col_edit, col_del = st.columns([0.94, 0.03, 0.03])
-
-with col_card:
-
-    st.markdown(f"""
-    <div style="
-        background:#1e293b;
-        border-left:5px solid #3b82f6;
-        padding:14px 18px;
-        border-radius:8px;
-        height:48px;
-
-        display:flex;
-        align-items:center;
-
-        color:white;
-        font-size:15px;
-        font-weight:500;
-    ">
-
-        <span style="color:#fbbf24;font-size:18px;">⚠️</span>
-
-        <span style="margin-left:12px;">
-
-            <strong>Tarefa ##{t_id}</strong>
-
-            Criada {info['data_criacao']}
-
-            |
-
-            <strong>Assunto:</strong>
-            {info['titulo']}
-
-            |
-
-            <span style="
-                color:#f59e0b;
-                font-weight:bold;
-            ">
-                Status: {info['status']}
-            </span>
-
-        </span>
-
-    </div>
-    """, unsafe_allow_html=True)
-
-
-with col_edit:
-
-    # Mantida toda a lógica.
-    if st.button(
-        "✏️",
-        key=f"btn_open_edit_{t_id}",
-        help="Editar",
-        use_container_width=True
-    ):
-        st.session_state.editando_id = t_id
-        st.rerun()
-
-
-with col_del:
-
-    # Mantida toda a lógica.
-    st.markdown(f"""
-    <div style="
-        display:flex;
-        justify-content:center;
-        align-items:center;
-        height:48px;
-    ">
-
-        <a href="?deletar_tarefa={t_id}"
-           target="_self"
-           style="
-               text-decoration:none;
-               font-size:20px;
-           ">
-           🗑️
-        </a>
-
-    </div>
-    """, unsafe_allow_html=True)
-    
 # 5. AGENTES DE PLANTÃO
 st.write("---")
 st.subheader("👨‍💻 Agentes de Plantão")
