@@ -481,7 +481,6 @@ with conteudo_painel.container():
                 """, unsafe_allow_html=True)
     else:
         st.error(f"Erro WhatsFlux: {msg_retorno}")
-
 # 4. AVISOS DE TAREFAS (KANBAN)
     st.write("---")
     col_titulo, col_audio = st.columns([3, 1])
@@ -498,13 +497,37 @@ with conteudo_painel.container():
     tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
     # =========================================================================
-    # REFORMA VISUAL DA LISTA DE TAREFAS: EDIÇÃO (FECHA POP-UP AUTO) + EXCLUSÃO
+    # DIALOG DE EDIÇÃO (FECHA AUTOMATICAMENTE APÓS SALVAR)
+    # =========================================================================
+    @st.dialog("✏️ Editar Tarefa")
+    def modal_editar_tarefa(t_id, titulo_atual):
+        """
+        Modal nativo que permite alterar o nome da tarefa e fecha 
+        imediatamente ao submeter o formulário com st.rerun().
+        """
+        st.write(f"**Alterar assunto da Tarefa #{t_id}**")
+        with st.form(key=f"form_modal_{t_id}"):
+            novo_nome = st.text_input("Novo Assunto/Nome:", value=titulo_atual)
+            btn_salvar = st.form_submit_button("💾 Salvar Alteração")
+            
+            if btn_salvar:
+                # 1. Atualiza no estado da sessão
+                st.session_state.tarefas_kanban[t_id]["titulo"] = novo_nome
+                
+                # 2. Salva no arquivo JSON para manter a persistência
+                salvar_tarefas(st.session_state.tarefas_kanban)
+                
+                # 3. Força a re-renderização (fechando o dialog instantaneamente)
+                st.rerun()
+
+    # =========================================================================
+    # RENDERIZAÇÃO DA LISTA DE TAREFAS
     # =========================================================================
     if tarefas_exibidas:
         for t_id, info in list(tarefas_exibidas.items()):
             col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
 
-            # Coluna 1: Informações da tarefa
+            # Coluna 1: Informações visuais da tarefa
             with col_info:
                 st.markdown(f"""
                 <div class="kanban-box">
@@ -516,30 +539,15 @@ with conteudo_painel.container():
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Coluna 2: Botão Editar (✏️) localizado à ESQUERDA do botão excluir
+            # Coluna 2: Botão de Lápis (✏️) no lado esquerdo da lixeira
             with col_edit:
-                with st.popover("✏️", help=f"Editar nome da tarefa #{t_id}"):
-                    st.markdown(f"**Editar Tarefa #{t_id}**")
-                    
-                    # Uso do st.form para garantir que o popover feche ao salvar
-                    with st.form(key=f"form_edit_{t_id}"):
-                        novo_nome = st.text_input("Novo Assunto/Nome:", value=info['titulo'])
-                        btn_salvar = st.form_submit_button("💾 Salvar")
-                        
-                        if btn_salvar:
-                            # 1. Atualiza no estado do Streamlit
-                            st.session_state.tarefas_kanban[t_id]["titulo"] = novo_nome
-                            
-                            # 2. Persiste a alteração no arquivo JSON (tarefas_pendentes.json)
-                            salvar_tarefas(st.session_state.tarefas_kanban)
-                            
-                            # 3. Força a atualização da página (Isso fecha a janela de pop-up automaticamente)
-                            st.rerun()
+                if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
+                    modal_editar_tarefa(t_id, info['titulo'])
 
-            # Coluna 3: Botão Excluir (🗑️)
+            # Coluna 3: Botão de Exclusão (🗑️)
             with col_del:
                 st.markdown(f"""
-                <div style="display: flex; align-items: center; justify-content: center; height: 48px;">
+                <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
                     <a href="?deletar_tarefa={t_id}" target="_self" style="
                         text-decoration: none;
                         font-size: 20px;
