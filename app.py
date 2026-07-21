@@ -495,7 +495,7 @@ with conteudo_painel.container():
     else:
         st.error(f"Erro WhatsFlux: {msg_retorno}")
 
-    # 4. AVISOS DE TAREFAS (KANBAN)
+# 4. AVISOS DE TAREFAS (KANBAN)
     st.write("---")
     col_titulo, col_audio = st.columns([3, 1])
 
@@ -510,47 +510,85 @@ with conteudo_painel.container():
 
     tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
+    # CSS para forçar alinhamento vertical e fundo do container da tarefa
+    st.markdown("""
+    <style>
+    /* Estiliza os containers das colunas de tarefas */
+    div[data-testid="column"] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    div[data-testid="column"]:first-child {
+        justify-content: flex-start;
+    }
+    /* Estiliza o botão de lixeira transparente */
+    div[data-testid="stButton"] > button {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: 18px !important;
+        box-shadow: none !important;
+    }
+    div[data-testid="stButton"] > button:hover {
+        transform: scale(1.2);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # =========================================================================
-    # LISTA DE TAREFAS REESTRUTURADA (LINHA ÚNICA, BOTOES ALINHADOS E SEM ESPAÇOS)
+    # LISTA DE TAREFAS TOTALMENTE ALINHADA
     # =========================================================================
     if tarefas_exibidas:
         for t_id, info in list(tarefas_exibidas.items()):
-            # Wrapper do Card unificado
-            st.markdown('<div class="kanban-row">', unsafe_allow_html=True)
-            
-            col_info, col_edit, col_del = st.columns([0.92, 0.04, 0.04])
+            # Container nativo com fundo escuro e borda azul
+            with st.container():
+                col_info, col_edit, col_del = st.columns([0.90, 0.05, 0.05])
 
-            with col_info:
-                st.markdown(f"""
-                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 28px;">
-                    ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                    <strong>Assunto:</strong> {info['titulo']} | 
-                    <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                </span>
-                """, unsafe_allow_html=True)
+                with col_info:
+                    st.markdown(f"""
+                    <div style="
+                        background-color: #1e293b; 
+                        border-left: 4px solid #2563eb; 
+                        padding: 8px 12px; 
+                        border-radius: 4px 0 0 4px;
+                        width: 100%;
+                        white-space: nowrap; 
+                        overflow: hidden; 
+                        text-overflow: ellipsis;
+                        font-size: 14px;
+                    ">
+                        ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                        <strong>Assunto:</strong> {info['titulo']} | 
+                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-            with col_edit:
-                with st.popover("✏️", help=f"Editar tarefa #{t_id}"):
-                    st.markdown(f"**Editar Tarefa #{t_id}**")
-                    with st.form(key=f"form_edit_{t_id}"):
-                        novo_titulo = st.text_input("Novo Assunto:", value=info['titulo'])
-                        btn_salvar = st.form_submit_button("💾 Salvar", type="primary")
+                with col_edit:
+                    st.markdown('<div style="background-color: #1e293b; padding: 6px 0; width: 100%; text-align: center;">', unsafe_allow_html=True)
+                    with st.popover("✏️", help=f"Editar tarefa #{t_id}"):
+                        st.markdown(f"**Editar Tarefa #{t_id}**")
+                        with st.form(key=f"form_edit_{t_id}"):
+                            novo_titulo = st.text_input("Novo Assunto:", value=info['titulo'])
+                            btn_salvar = st.form_submit_button("💾 Salvar", type="primary")
 
-                        if btn_salvar:
-                            st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
-                            salvar_tarefas(st.session_state.tarefas_kanban)
-                            st.rerun()
+                            if btn_salvar:
+                                st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
+                                salvar_tarefas(st.session_state.tarefas_kanban)
+                                st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-            with col_del:
-                st.markdown(f"""
-                <div style="text-align: center; line-height: 28px;">
-                    <a href="?deletar_tarefa={t_id}" target="_self" style="text-decoration: none; font-size: 18px;" title="Excluir tarefa #{t_id}">
-                        🗑️
-                    </a>
-                </div>
-                """, unsafe_allow_html=True)
+                with col_del:
+                    st.markdown('<div style="background-color: #1e293b; padding: 6px 0; border-radius: 0 4px 4px 0; width: 100%; text-align: center;">', unsafe_allow_html=True)
+                    if st.button("🗑️", key=f"btn_del_{t_id}", help=f"Excluir tarefa #{t_id}"):
+                        del st.session_state.tarefas_kanban[t_id]
+                        salvar_tarefas(st.session_state.tarefas_kanban)
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown('</div>', unsafe_allow_html=True)
+                # Espaçamento mínimo de 4px entre os cards
+                st.markdown('<div style="margin-bottom: 4px;"></div>', unsafe_allow_html=True)
     else:
         st.info("Nenhuma tarefa pendente registrada no painel.")
 
