@@ -51,7 +51,7 @@ body {
     color: white;
 }
 
-/* CARD */
+/* CARD METRICAS */
 .small-card {
     padding: 26px;
     border-radius: 8px;
@@ -72,19 +72,38 @@ body {
     margin-bottom: 20px;
 }
 
-/* CONTAINER DE TAREFA ESTILIZADO */
+/* CONTAINER DE TAREFA UNIFICADO */
 .kanban-box {
     background-color: #1e293b;
     border-left: 5px solid #2563eb;
-    padding: 12px 18px;
+    padding: 10px 16px;
     border-radius: 6px;
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* REMOVER ESTILOS PADRÃO DO POPOVER PARA FICAR DENTRO DO CARD */
+div[data-testid="stPopover"] > button {
+    background-color: transparent !important;
+    border: none !important;
+    color: white !important;
+    font-size: 16px !important;
+    padding: 2px 6px !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+}
+
+div[data-testid="stPopover"] > button:hover {
+    background-color: #334155 !important;
+    border-radius: 4px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================
-# SISTEMA DE ÁUDIO CORRIGIDO
+# SISTEMA DE ÁUDIO
 # ==============================
 def renderizar_botao_audio():
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
@@ -295,9 +314,6 @@ def login_e_get_status_whatsflux():
         return f"Erro de Conexão ({str(e)[:20]})", {}
 
 def atualizar_kanban(session_kb):
-    """
-    Sincroniza com o Kanban sem duplicar tarefas e respeita as edições locais.
-    """
     if not session_kb:
         return
     
@@ -364,7 +380,6 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
-# Contador de versão para forçar o fechamento do Popover
 if "popover_version" not in st.session_state:
     st.session_state.popover_version = {}
 
@@ -395,7 +410,6 @@ if not session:
     st.error("Erro no login do PABX")
     st.stop()
 
-# Coleta de dados antes da renderização
 agentes = get_agentes(session)
 atualizar_kanban(session_kb)
 
@@ -404,7 +418,6 @@ atualizar_kanban(session_kb)
 # ==============================
 st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
 
-# Métricas
 livres = sum(1 for _, s in agentes if s == "livre")
 ocupados = sum(1 for _, s in agentes if s == "ocupado")
 pausa = sum(1 for _, s in agentes if s == "pausa")
@@ -493,17 +506,19 @@ if st.session_state.get("play_alert", False):
 tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
 # =========================================================================
-# LISTA DE TAREFAS - POPOVER COM FECHAMENTO AUTOMÁTICO
+# LISTA DE TAREFAS (BOTÕES DENTRO DO CARD COM MESMA COR DE FUNDO)
 # =========================================================================
 if tarefas_exibidas:
     for t_id, info in list(tarefas_exibidas.items()):
-        col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
+        v_pop = st.session_state.popover_version.get(t_id, 0)
 
-        # Coluna 1: Card Kanban
-        with col_info:
+        # Colunas com alinhamento vertical e fundo do card único
+        col_txt, col_pop, col_trash = st.columns([0.88, 0.06, 0.06])
+
+        with col_txt:
             st.markdown(f"""
-            <div class="kanban-box">
-                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 24px;">
+            <div class="kanban-box" style="margin-bottom: 0;">
+                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 28px;">
                     ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
                     <strong>Assunto:</strong> {info['titulo']} | 
                     <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
@@ -511,43 +526,39 @@ if tarefas_exibidas:
             </div>
             """, unsafe_allow_html=True)
 
-        # Versão do popover para controle de estado
-        v_pop = st.session_state.popover_version.get(t_id, 0)
-
-        # Coluna 2: Pop-up de Edição (✏️)
-        with col_edit:
+        with col_pop:
+            # Container estilizado idêntico ao fundo do card
+            st.markdown("""
+            <div style="background-color: #1e293b; height: 100%; display: flex; align-items: center; justify-content: center; padding: 4px;">
+            """, unsafe_allow_html=True)
+            
             with st.popover("✏️", help=f"Editar tarefa #{t_id}"):
                 st.markdown(f"**Editar Tarefa #{t_id}**")
-                
-                # Form com chave dinâmica para autodestruição ao salvar
                 with st.form(key=f"form_edit_{t_id}_v{v_pop}"):
                     novo_titulo = st.text_input("Novo Assunto:", value=info['titulo'])
                     btn_salvar = st.form_submit_button("💾 Salvar", type="primary")
 
                     if btn_salvar:
-                        # 1. Salva nos dados
                         st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
                         salvar_tarefas(st.session_state.tarefas_kanban)
-                        
-                        # 2. Incrementa a versão (Força o fechamento do popover no próximo ciclo)
                         st.session_state.popover_version[t_id] = v_pop + 1
-                        
-                        # 3. Recarrega a tela
                         st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # Coluna 3: Exclusão (🗑️)
-        with col_del:
+        with col_trash:
             st.markdown(f"""
-            <div style="display: flex; align-items: center; justify-content: center; height: 48px;">
+            <div style="background-color: #1e293b; height: 100%; border-top-right-radius: 6px; border-bottom-right-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 4px;">
                 <a href="?deletar_tarefa={t_id}" target="_self" style="
                     text-decoration: none;
-                    font-size: 20px;
+                    font-size: 18px;
                     cursor: pointer;
                 " title="Excluir tarefa #{t_id} do painel">
                     🗑️
                 </a>
             </div>
             """, unsafe_allow_html=True)
+            
+        st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
 
