@@ -482,7 +482,7 @@ with conteudo_painel.container():
     else:
         st.error(f"Erro WhatsFlux: {msg_retorno}")
 
-    # 4. AVISOS DE TAREFAS (KANBAN)
+# 4. AVISOS DE TAREFAS (KANBAN)
     st.write("---")
     col_titulo, col_audio = st.columns([3, 1])
 
@@ -498,11 +498,10 @@ with conteudo_painel.container():
     tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
     # =========================================================================
-    # REFORMA VISUAL DA LISTA DE TAREFAS: EDIÇÃO + EXCLUSÃO
+    # REFORMA VISUAL DA LISTA DE TAREFAS: EDIÇÃO (FECHA POP-UP AUTO) + EXCLUSÃO
     # =========================================================================
     if tarefas_exibidas:
         for t_id, info in list(tarefas_exibidas.items()):
-            # Divide a linha em: [Detalhes da Tarefa (Amplo)] | [Botão Editar] | [Botão Excluir]
             col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
 
             # Coluna 1: Informações da tarefa
@@ -519,21 +518,26 @@ with conteudo_painel.container():
 
             # Coluna 2: Botão Editar (✏️) localizado à ESQUERDA do botão excluir
             with col_edit:
-                # O popover cria uma janela flutuante ao clicar no lápis
                 with st.popover("✏️", help=f"Editar nome da tarefa #{t_id}"):
                     st.markdown(f"**Editar Tarefa #{t_id}**")
-                    novo_nome = st.text_input("Novo Assunto/Nome:", value=info['titulo'], key=f"input_{t_id}")
                     
-                    if st.button("Salvar", key=f"btn_salvar_{t_id}"):
-                        # Atualiza o título no dicionário local e grava no JSON
-                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_nome
-                        salvar_tarefas(st.session_state.tarefas_kanban)
-                        st.success("Atualizado!")
-                        st.rerun()
+                    # Uso do st.form para garantir que o popover feche ao salvar
+                    with st.form(key=f"form_edit_{t_id}"):
+                        novo_nome = st.text_input("Novo Assunto/Nome:", value=info['titulo'])
+                        btn_salvar = st.form_submit_button("💾 Salvar")
+                        
+                        if btn_salvar:
+                            # 1. Atualiza no estado do Streamlit
+                            st.session_state.tarefas_kanban[t_id]["titulo"] = novo_nome
+                            
+                            # 2. Persiste a alteração no arquivo JSON (tarefas_pendentes.json)
+                            salvar_tarefas(st.session_state.tarefas_kanban)
+                            
+                            # 3. Força a atualização da página (Isso fecha a janela de pop-up automaticamente)
+                            st.rerun()
 
             # Coluna 3: Botão Excluir (🗑️)
             with col_del:
-                # Link seguro para acionar a exclusão cadastrada no topo
                 st.markdown(f"""
                 <div style="display: flex; align-items: center; justify-content: center; height: 48px;">
                     <a href="?deletar_tarefa={t_id}" target="_self" style="
