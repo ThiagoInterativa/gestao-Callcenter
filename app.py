@@ -51,7 +51,7 @@ body {
     color: white;
 }
 
-/* CARD  */
+/* CARD METRICAS */
 .small-card {
     padding: 26px;
     border-radius: 8px;
@@ -72,35 +72,36 @@ body {
     margin-bottom: 20px;
 }
 
-/* CONTAINER DE TAREFA ESTILIZADO */
-.kanban-box {
+/* CONTAINER COMPACTO DAS TAREFAS */
+.kanban-row {
     background-color: #1e293b;
     border-left: 5px solid #2563eb;
-    padding: 12px 18px;
     border-radius: 6px;
+    padding: 10px 16px;
     margin-bottom: 8px;
 }
 
-/* REMOVE FUNDOS, BORDAS E SOMBRAS DO BOTÃO DE POPOVER DO STREAMLIT */
+/* ESTILIZAÇÃO DO BOTAO DE POPOVER (LÁPIS) */
 div[data-testid="stPopover"] {
-    background: transparent !important;
-    border: none !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 div[data-testid="stPopover"] > button {
     background-color: transparent !important;
     border: none !important;
     color: white !important;
-    padding: 0 !important;
-    margin: 0 !important;
+    padding: 0px !important;
+    margin: 0px !important;
     font-size: 18px !important;
     box-shadow: none !important;
     line-height: 1 !important;
+    cursor: pointer;
 }
 
 div[data-testid="stPopover"] > button:hover {
-    background-color: transparent !important;
-    transform: scale(1.1);
+    transform: scale(1.15);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -510,65 +511,46 @@ with conteudo_painel.container():
     tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
     # =========================================================================
-    # LISTA DE TAREFAS COM BOTAO DE EDICAO E EXCLUSAO DENTRO DO MESMO CARD
+    # LISTA DE TAREFAS REESTRUTURADA (LINHA ÚNICA, BOTOES ALINHADOS E SEM ESPAÇOS)
     # =========================================================================
     if tarefas_exibidas:
         for t_id, info in list(tarefas_exibidas.items()):
-            # HTML do Card com o texto e o botão de exclusão fixado
-            st.markdown(f"""
-            <div class="kanban-box" style="
-                position: relative; 
-                margin-bottom: 8px; 
-                display: flex; 
-                align-items: center; 
-                justify-content: space-between; 
-                height: 48px;
-                padding-right: 85px;
-            ">
-                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            # Wrapper do Card unificado
+            st.markdown('<div class="kanban-row">', unsafe_allow_html=True)
+            
+            col_info, col_edit, col_del = st.columns([0.92, 0.04, 0.04])
+
+            with col_info:
+                st.markdown(f"""
+                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 28px;">
                     ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
                     <strong>Assunto:</strong> {info['titulo']} | 
                     <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
                 </span>
-                <a href="?deletar_tarefa={t_id}" target="_self" style="
-                    position: absolute;
-                    right: 18px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    text-decoration: none;
-                    font-size: 18px;
-                    cursor: pointer;
-                " title="Excluir tarefa #{t_id} do painel">
-                    🗑️
-                </a>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
-            # Botão de edição (✏️) posicionado no mesmo nível e embutido no fundo do card
-            st.markdown(f"""
-            <style>
-            div[data-testid="stPopover"] {{
-                position: relative;
-                top: -42px;
-                left: calc(100% - 78px);
-                width: 30px;
-                height: 0px;
-                margin-bottom: -32px;
-                z-index: 10;
-            }}
-            </style>
-            """, unsafe_allow_html=True)
+            with col_edit:
+                with st.popover("✏️", help=f"Editar tarefa #{t_id}"):
+                    st.markdown(f"**Editar Tarefa #{t_id}**")
+                    with st.form(key=f"form_edit_{t_id}"):
+                        novo_titulo = st.text_input("Novo Assunto:", value=info['titulo'])
+                        btn_salvar = st.form_submit_button("💾 Salvar", type="primary")
 
-            with st.popover("✏️", help=f"Editar tarefa #{t_id}"):
-                st.markdown(f"**Editar Tarefa #{t_id}**")
-                with st.form(key=f"form_edit_{t_id}"):
-                    novo_titulo = st.text_input("Novo Assunto:", value=info['titulo'])
-                    btn_salvar = st.form_submit_button("💾 Salvar", type="primary")
+                        if btn_salvar:
+                            st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
+                            salvar_tarefas(st.session_state.tarefas_kanban)
+                            st.rerun()
 
-                    if btn_salvar:
-                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
-                        salvar_tarefas(st.session_state.tarefas_kanban)
-                        st.rerun()
+            with col_del:
+                st.markdown(f"""
+                <div style="text-align: center; line-height: 28px;">
+                    <a href="?deletar_tarefa={t_id}" target="_self" style="text-decoration: none; font-size: 18px;" title="Excluir tarefa #{t_id}">
+                        🗑️
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("Nenhuma tarefa pendente registrada no painel.")
 
