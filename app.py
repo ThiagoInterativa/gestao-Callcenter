@@ -528,6 +528,9 @@ tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 if tarefas_exibidas:
     for t_id, info in list(tarefas_exibidas.items()):
         if st.session_state.editando_id == t_id:
+            # =====================================================
+            # MODO DE EDIÇÃO DA TAREFA
+            # =====================================================
             col_input, col_salvar, col_canc = st.columns([0.76, 0.12, 0.12])
             with col_input:
                 novo_titulo = st.text_input(
@@ -548,26 +551,39 @@ if tarefas_exibidas:
                     st.rerun()
         else:
             # =====================================================
-            # LAYOUT DA TAREFA
-            # Toda a linha é montada em uma única caixa HTML/CSS para garantir alinhamento perfeito.
-            # Toda a lógica de edição/exclusão permanece preservada.
+            # MODO DE VISUALIZAÇÃO COM EDIÇÃO/EXCLUSÃO FUNCIONANDO
             # =====================================================
-            st.markdown(f"""
-            <div class="kanban-box">
-                <div style="display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-right: 12px;">
-                    <span style="color:#fbbf24; font-size:18px; margin-right: 8px;">⚠️</span>
-                    <span>
-                        <strong>Tarefa #{t_id}</strong> &nbsp;Criada {info['data_criacao']} &nbsp;|&nbsp; 
-                        <strong>Assunto:</strong> {info['titulo']} &nbsp;|&nbsp; 
-                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                    </span>
+            col_card, col_edit, col_del = st.columns([0.90, 0.05, 0.05])
+            
+            with col_card:
+                st.markdown(f"""
+                <div class="kanban-box">
+                    <div style="display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                        <span style="color:#fbbf24; font-size:18px; margin-right: 8px;">⚠️</span>
+                        <span>
+                            <strong>Tarefa #{t_id}</strong> &nbsp;Criada {info['data_criacao']} &nbsp;|&nbsp; 
+                            <strong>Assunto:</strong> {info['titulo']} &nbsp;|&nbsp; 
+                            <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                        </span>
+                    </div>
                 </div>
-                <div class="kanban-actions">
-                    <a href="?editar_tarefa={t_id}" target="_self" class="btn-icon-action" title="Editar Tarefa #{t_id}">✏️</a>
-                    <a href="?deletar_tarefa={t_id}" target="_self" class="btn-icon-action" title="Excluir Tarefa #{t_id}">🗑️</a>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+                
+            with col_edit:
+                # Botão nativo Streamlit para editar sem recarregar a URL
+                if st.button("✏️", key=f"btn_edt_{t_id}", help="Editar Tarefa", use_container_width=True):
+                    st.session_state.editando_id = t_id
+                    st.rerun()
+
+            with col_del:
+                # Botão nativo para exclusão rápida
+                if st.button("🗑️", key=f"btn_del_{t_id}", help="Excluir Tarefa", use_container_width=True):
+                    del st.session_state.tarefas_kanban[t_id]
+                    salvar_tarefas(st.session_state.tarefas_kanban)
+                    st.rerun()
+
+            # Espaçamento mínimo entre os cards
+            st.markdown('<div style="margin-bottom: 4px;"></div>', unsafe_allow_html=True)
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
 
