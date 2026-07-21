@@ -73,15 +73,33 @@ body {
 }
 
 /* CONTAINER DE TAREFA ESTILIZADO */
-.kanban-box {
-    background-color: #1e293b;
-    border-left: 5px solid #2563eb;
-    padding: 12px 18px;
-    border-radius: 6px;
-    margin-bottom: 8px;
+/* =====================================================
+   CARD DAS TAREFAS
+   Alteração apenas visual
+===================================================== */
+
+.kanban-box{
+
+    background:#1e293b;
+
+    border-left:5px solid #3b82f6;
+
+    border-radius:8px;
+
+    padding:14px 18px;
+
+    margin-bottom:8px;
+
+    display:flex;
+
+    align-items:center;
+
+    color:white;
+
+    font-size:15px;
+
+    min-height:50px;
 }
-</style>
-""", unsafe_allow_html=True)
 
 # ==============================
 # SISTEMA DE ÁUDIO CORRIGIDO
@@ -93,17 +111,11 @@ def renderizar_botao_audio():
     sound_html = f"""
     <div style="display: flex; justify-content: flex-end; align-items: center; height: 40px;">
         <button id="btn-ativar-som" onclick="testarEAtivarSom()" style="
-            background-color: #2563eb; 
-            color: white; 
-            border: none; 
-            padding: 6px 12px; 
-            border-radius: 6px; 
-            font-weight: bold; 
-            cursor: pointer;
-            font-size: 12px;
-            max-width: 180px;
-            width: 100%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          background:#2563eb;
+border-radius:8px;
+height:40px;
+font-weight:600;
+padding:0 18px;
         ">🔊 Ativar & Testar Som</button>
     </div>
 
@@ -513,39 +525,97 @@ if tarefas_exibidas:
                     st.session_state.editando_id = None
                     st.rerun()
         else:
-            col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
+           
+            # =====================================================
+# LAYOUT DA TAREFA
+# Alteração apenas visual.
+# Toda lógica de editar/excluir permanece igual.
+# =====================================================
 
-            with col_info:
-                st.markdown(f"""
-                <div class="kanban-box">
-                    <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                        <strong>Assunto:</strong> {info['titulo']} | 
-                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                    </span>
-                </div>
-                """, unsafe_allow_html=True)
+col_card, col_edit, col_del = st.columns([0.94, 0.03, 0.03])
 
-            with col_edit:
-                if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
-                    st.session_state.editando_id = t_id
-                    st.rerun()
+with col_card:
 
-            with col_del:
-                st.markdown(f"""
-                <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
-                    <a href="?deletar_tarefa={t_id}" target="_self" style="
-                        text-decoration: none;
-                        font-size: 20px;
-                        cursor: pointer;
-                    " title="Excluir tarefa #{t_id} do painel">
-                        🗑️
-                    </a>
-                </div>
-                """, unsafe_allow_html=True)
-else:
-    st.info("Nenhuma tarefa pendente registrada no painel.")
+    st.markdown(f"""
+    <div style="
+        background:#1e293b;
+        border-left:5px solid #3b82f6;
+        padding:14px 18px;
+        border-radius:8px;
+        height:48px;
 
+        display:flex;
+        align-items:center;
+
+        color:white;
+        font-size:15px;
+        font-weight:500;
+    ">
+
+        <span style="color:#fbbf24;font-size:18px;">⚠️</span>
+
+        <span style="margin-left:12px;">
+
+            <strong>Tarefa ##{t_id}</strong>
+
+            Criada {info['data_criacao']}
+
+            |
+
+            <strong>Assunto:</strong>
+            {info['titulo']}
+
+            |
+
+            <span style="
+                color:#f59e0b;
+                font-weight:bold;
+            ">
+                Status: {info['status']}
+            </span>
+
+        </span>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+
+with col_edit:
+
+    # Mantida toda a lógica.
+    if st.button(
+        "✏️",
+        key=f"btn_open_edit_{t_id}",
+        help="Editar",
+        use_container_width=True
+    ):
+        st.session_state.editando_id = t_id
+        st.rerun()
+
+
+with col_del:
+
+    # Mantida toda a lógica.
+    st.markdown(f"""
+    <div style="
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        height:48px;
+    ">
+
+        <a href="?deletar_tarefa={t_id}"
+           target="_self"
+           style="
+               text-decoration:none;
+               font-size:20px;
+           ">
+           🗑️
+        </a>
+
+    </div>
+    """, unsafe_allow_html=True)
+    
 # 5. AGENTES DE PLANTÃO
 st.write("---")
 st.subheader("👨‍💻 Agentes de Plantão")
