@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import unicodedata
-import altair as alt
+import altair as alt  
 import json
 import os
 
@@ -51,7 +51,7 @@ body {
     color: white;
 }
 
-/* CARD METRICAS */
+/* CARD  */
 .small-card {
     padding: 26px;
     border-radius: 8px;
@@ -72,38 +72,19 @@ body {
     margin-bottom: 20px;
 }
 
-/* CONTAINER DE TAREFA UNIFICADO */
+/* CONTAINER DE TAREFA ESTILIZADO */
 .kanban-box {
     background-color: #1e293b;
     border-left: 5px solid #2563eb;
-    padding: 10px 16px;
+    padding: 12px 18px;
     border-radius: 6px;
     margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-/* REMOVER ESTILOS PADRÃO DO POPOVER PARA FICAR DENTRO DO CARD */
-div[data-testid="stPopover"] > button {
-    background-color: transparent !important;
-    border: none !important;
-    color: white !important;
-    font-size: 16px !important;
-    padding: 2px 6px !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-}
-
-div[data-testid="stPopover"] > button:hover {
-    background-color: #334155 !important;
-    border-radius: 4px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================
-# SISTEMA DE ÁUDIO
+# SISTEMA DE ÁUDIO CORRIGIDO (BOTÃO COMPACTO)
 # ==============================
 def renderizar_botao_audio():
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
@@ -154,7 +135,7 @@ def renderizar_botao_audio():
     </script>
     """
     st.components.v1.html(sound_html, height=50)
-
+    
 # ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
@@ -369,7 +350,7 @@ def atualizar_kanban(session_kb):
         st.sidebar.error(f"Erro ao ler Kanban: {e}")
 
 # ==============================
-# INICIALIZAÇÃO DE VARIÁVEIS DE ESTADO
+# INICIALIZAÇÃO DE VARIÁVEIS DO ESTADO
 # ==============================
 if "historico" not in st.session_state:
     st.session_state.historico = []
@@ -379,9 +360,6 @@ if "tarefas_kanban" not in st.session_state:
 
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
-
-if "popover_version" not in st.session_state:
-    st.session_state.popover_version = {}
 
 if "session" not in st.session_state or not st.session_state.session:
     st.session_state.session = login()
@@ -410,166 +388,147 @@ if not session:
     st.error("Erro no login do PABX")
     st.stop()
 
+# Coleta de dados antes de renderizar
 agentes = get_agentes(session)
 atualizar_kanban(session_kb)
 
-# ==============================
-# RENDERIZAÇÃO DA PÁGINA
-# ==============================
-st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
+# 🟢 CONTAINER ÚNICO PRINCIPAL (Evita duplicações na tela)
+conteudo_painel = st.empty()
 
-livres = sum(1 for _, s in agentes if s == "livre")
-ocupados = sum(1 for _, s in agentes if s == "ocupado")
-pausa = sum(1 for _, s in agentes if s == "pausa")
-agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
+with conteudo_painel.container():
+    st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
 
-st.session_state.historico.append({
-    "time": agora_br,
-    "livres": int(livres),
-    "ocupados": int(ocupados),
-    "pausa": int(pausa)
-})
+    # Métricas
+    livres = sum(1 for _, s in agentes if s == "livre")
+    ocupados = sum(1 for _, s in agentes if s == "ocupado")
+    pausa = sum(1 for _, s in agentes if s == "pausa")
+    agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-# 1. CARDS DO TOPO
-col1, col2, col3 = st.columns(3)
-col1.markdown(f'<div class="small-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
-col2.markdown(f'<div class="small-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
-col3.markdown(f'<div class="small-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
+    # Salva histórico
+    st.session_state.historico.append({
+        "time": agora_br,
+        "livres": int(livres),
+        "ocupados": int(ocupados),
+        "pausa": int(pausa)
+    })
 
-st.write("") 
+    # 1. CARDS DO TOPO
+    col1, col2, col3 = st.columns(3)
+    col1.markdown(f'<div class="small-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
+    col2.markdown(f'<div class="small-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
+    col3.markdown(f'<div class="small-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
-# 2. GRÁFICO
-df_hist = pd.DataFrame(st.session_state.historico)
-if not df_hist.empty:
-    df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
-    df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
-    
-    for col in ["livres", "ocupados", "pausa"]:
-        if col not in df_hist.columns: df_hist[col] = 0
+    st.write("") 
+
+    # 2. GRÁFICO (CENTRO)
+    df_hist = pd.DataFrame(st.session_state.historico)
+    if not df_hist.empty:
+        df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
+        df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
         
-    df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
+        for col in ["livres", "ocupados", "pausa"]:
+            if col not in df_hist.columns: df_hist[col] = 0
+            
+        df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
 
-    series = ["livres", "ocupados"]
-    if df_hist["pausa"].sum() > 0:
-        series.append("pausa")
+        series = ["livres", "ocupados"]
+        if df_hist["pausa"].sum() > 0:
+            series.append("pausa")
 
-    df_plot = df_hist.copy()
-    for col in ["livres", "ocupados"]:
-        df_plot[col] = df_plot[col].replace(0, None)
+        df_plot = df_hist.copy()
+        for col in ["livres", "ocupados"]:
+            df_plot[col] = df_plot[col].replace(0, None)
 
-    df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
-    
-    color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
-    color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
+        df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
+        
+        color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
+        color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
 
-    chart = alt.Chart(df_melt).mark_line(point=True).encode(
-        x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
-        y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
-        color=alt.Color("Status:N", scale=color_scale),
-        tooltip=["time:T", "Status", "Quantidade"]
-    ).properties(height=320)
+        chart = alt.Chart(df_melt).mark_line(point=True).encode(
+            x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
+            y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
+            color=alt.Color("Status:N", scale=color_scale),
+            tooltip=["time:T", "Status", "Quantidade"]
+        ).properties(height=320)
 
-    st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, use_container_width=True)
 
-# 3. WHATSFLUX
-st.write("---")
-msg_retorno, status_whats = login_e_get_status_whatsflux()
-st.subheader("👥 Status do Suporte Técnico (WhatsFlux)")
+    # 3. STATUS DO SUPORTE (WHATSFLUX)
+    st.write("---")
+    msg_retorno, status_whats = login_e_get_status_whatsflux()
+    st.subheader("👥 Status do Suporte Técnico (WhatsFlux)")
 
-if "OK" in msg_retorno:
-    colunas_tecnicos = st.columns(len(status_whats))
-    for col, (tecnico, status) in zip(colunas_tecnicos, status_whats.items()):
-        with col:
-            badge = '<span style="color: #4ade80; font-weight: bold;">🟢 ONLINE</span>' if status == "online" else '<span style="color: #f87171; font-weight: bold;">🔴 OFFLINE</span>'
+    if "OK" in msg_retorno:
+        colunas_tecnicos = st.columns(len(status_whats))
+        for col, (tecnico, status) in zip(colunas_tecnicos, status_whats.items()):
+            with col:
+                badge = '<span style="color: #4ade80; font-weight: bold;">🟢 ONLINE</span>' if status == "online" else '<span style="color: #f87171; font-weight: bold;">🔴 OFFLINE</span>'
+                st.markdown(f"""
+                <div style="background-color: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: center;">
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px; color: #f8fafc;">{tecnico}</div>
+                    <div>{badge}</div>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.error(f"Erro WhatsFlux: {msg_retorno}")
+
+    # 4. AVISOS DE TAREFAS (KANBAN)
+    st.write("---")
+    col_titulo, col_audio = st.columns([3, 1])
+
+    with col_titulo:
+        st.subheader("🔔 Fila de tarefa pendente - Kanban")
+
+    with col_audio:
+        renderizar_botao_audio()
+
+    if st.session_state.get("play_alert", False):
+        st.session_state.play_alert = False
+
+    tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
+
+    if tarefas_exibidas:
+        for t_id, info in list(tarefas_exibidas.items()):
             st.markdown(f"""
-            <div style="background-color: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: center;">
-                <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px; color: #f8fafc;">{tecnico}</div>
-                <div>{badge}</div>
-            </div>
-            """, unsafe_allow_html=True)
-else:
-    st.error(f"Erro WhatsFlux: {msg_retorno}")
-
-# 4. AVISOS DE TAREFAS (KANBAN)
-st.write("---")
-col_titulo, col_audio = st.columns([3, 1])
-
-with col_titulo:
-    st.subheader("🔔 Fila de tarefa pendente - Kanban")
-
-with col_audio:
-    renderizar_botao_audio()
-
-if st.session_state.get("play_alert", False):
-    st.session_state.play_alert = False
-
-tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
-
-# =========================================================================
-# LISTA DE TAREFAS (BOTÕES DENTRO DO CARD COM MESMA COR DE FUNDO)
-# =========================================================================
-if tarefas_exibidas:
-    for t_id, info in list(tarefas_exibidas.items()):
-        v_pop = st.session_state.popover_version.get(t_id, 0)
-
-        # Colunas com alinhamento vertical e fundo do card único
-        col_txt, col_pop, col_trash = st.columns([0.88, 0.06, 0.06])
-
-        with col_txt:
-            st.markdown(f"""
-            <div class="kanban-box" style="margin-bottom: 0;">
-                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 28px;">
+            <div class="kanban-box" style="
+                position: relative; 
+                margin-bottom: 12px; 
+                display: flex; 
+                align-items: center; 
+                justify-content: space-between; 
+                height: 48px;
+                padding-right: 50px;
+            ">
+                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                     ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
                     <strong>Assunto:</strong> {info['titulo']} | 
                     <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
                 </span>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col_pop:
-            # Container estilizado idêntico ao fundo do card
-            st.markdown("""
-            <div style="background-color: #1e293b; height: 100%; display: flex; align-items: center; justify-content: center; padding: 4px;">
-            """, unsafe_allow_html=True)
-            
-            with st.popover("✏️", help=f"Editar tarefa #{t_id}"):
-                st.markdown(f"**Editar Tarefa #{t_id}**")
-                with st.form(key=f"form_edit_{t_id}_v{v_pop}"):
-                    novo_titulo = st.text_input("Novo Assunto:", value=info['titulo'])
-                    btn_salvar = st.form_submit_button("💾 Salvar", type="primary")
-
-                    if btn_salvar:
-                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
-                        salvar_tarefas(st.session_state.tarefas_kanban)
-                        st.session_state.popover_version[t_id] = v_pop + 1
-                        st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_trash:
-            st.markdown(f"""
-            <div style="background-color: #1e293b; height: 100%; border-top-right-radius: 6px; border-bottom-right-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 4px;">
                 <a href="?deletar_tarefa={t_id}" target="_self" style="
+                    position: absolute;
+                    right: 18px;
+                    top: 50%;
+                    transform: translateY(-50%);
                     text-decoration: none;
                     font-size: 18px;
                     cursor: pointer;
+                    transition: transform 0.1s ease;
                 " title="Excluir tarefa #{t_id} do painel">
                     🗑️
                 </a>
             </div>
             """, unsafe_allow_html=True)
-            
-        st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
-else:
-    st.info("Nenhuma tarefa pendente registrada no painel.")
+    else:
+        st.info("Nenhuma tarefa pendente registrada no painel.")
 
-# 5. AGENTES DE PLANTÃO
-st.write("---")
-st.subheader("👨‍💻 Agentes de Plantão")
-df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
-st.dataframe(df_agentes, use_container_width=True)
+    # 5. TABELA DE AGENTES PABX
+    st.write("---")
+    st.subheader("👨‍💻 Agentes de Plantão")
+    df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
+    st.dataframe(df_agentes, use_container_width=True)
 
 # ==============================
-# AUTO ATUALIZAR
+# AUTO ATUALIZAR CONFIGURÁVEL SEGURO
 # ==============================
 time.sleep(refresh_rate)
 st.rerun()
