@@ -84,7 +84,7 @@ body {
 """, unsafe_allow_html=True)
 
 # ==============================
-# SISTEMA DE ÁUDIO CORRIGIDO (BOTÃO COMPACTO)
+# SISTEMA DE ÁUDIO CORRIGIDO
 # ==============================
 def renderizar_botao_audio():
     audio_url = "https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
@@ -296,9 +296,7 @@ def login_e_get_status_whatsflux():
 
 def atualizar_kanban(session_kb):
     """
-    Mantém a validação das tarefas:
-    - Lê tarefas no Kanban.
-    - Se a tarefa foi finalizada no Kanban, apaga do arquivo tarefas_pendentes.json e da sessão.
+    Sincroniza com o Kanban sem duplicar tarefas e respeita as edições locais.
     """
     if not session_kb:
         return
@@ -355,7 +353,7 @@ def atualizar_kanban(session_kb):
         st.sidebar.error(f"Erro ao ler Kanban: {e}")
 
 # ==============================
-# INICIALIZAÇÃO DE VARIÁVEIS DO ESTADO
+# INICIALIZAÇÃO DE VARIÁVEIS DE ESTADO
 # ==============================
 if "historico" not in st.session_state:
     st.session_state.historico = []
@@ -366,7 +364,6 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
-# Controle de edições em linha (Inline)
 if "editando_id" not in st.session_state:
     st.session_state.editando_id = None
 
@@ -397,181 +394,166 @@ if not session:
     st.error("Erro no login do PABX")
     st.stop()
 
-# Coleta de dados antes de renderizar
+# Coleta de dados antes da renderização
 agentes = get_agentes(session)
 atualizar_kanban(session_kb)
 
-# 🟢 CONTAINER ÚNICO PRINCIPAL
-conteudo_painel = st.empty()
+# ==============================
+# RENDERIZAÇÃO DA PÁGINA
+# ==============================
+st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
 
-with conteudo_painel.container():
-    st.markdown('<div class="title">📡 Gestor de Call Center - Intercom</div>', unsafe_allow_html=True)
+# Métricas
+livres = sum(1 for _, s in agentes if s == "livre")
+ocupados = sum(1 for _, s in agentes if s == "ocupado")
+pausa = sum(1 for _, s in agentes if s == "pausa")
+agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-    # Métricas
-    livres = sum(1 for _, s in agentes if s == "livre")
-    ocupados = sum(1 for _, s in agentes if s == "ocupado")
-    pausa = sum(1 for _, s in agentes if s == "pausa")
-    agora_br = datetime.now(ZoneInfo("America/Sao_Paulo"))
+st.session_state.historico.append({
+    "time": agora_br,
+    "livres": int(livres),
+    "ocupados": int(ocupados),
+    "pausa": int(pausa)
+})
 
-    # Salva histórico
-    st.session_state.historico.append({
-        "time": agora_br,
-        "livres": int(livres),
-        "ocupados": int(ocupados),
-        "pausa": int(pausa)
-    })
+# 1. CARDS DO TOPO
+col1, col2, col3 = st.columns(3)
+col1.markdown(f'<div class="small-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
+col2.markdown(f'<div class="small-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
+col3.markdown(f'<div class="small-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
 
-    # 1. CARDS DO TOPO
-    col1, col2, col3 = st.columns(3)
-    col1.markdown(f'<div class="small-card green">🟢 {livres}<br>Livres</div>', unsafe_allow_html=True)
-    col2.markdown(f'<div class="small-card red">🔴 {ocupados}<br>Ocupados</div>', unsafe_allow_html=True)
-    col3.markdown(f'<div class="small-card yellow">🟡 {pausa}<br>Pausa</div>', unsafe_allow_html=True)
+st.write("") 
 
-    st.write("") 
-
-    # 2. GRÁFICO (CENTRO)
-    df_hist = pd.DataFrame(st.session_state.historico)
-    if not df_hist.empty:
-        df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
-        df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
+# 2. GRÁFICO
+df_hist = pd.DataFrame(st.session_state.historico)
+if not df_hist.empty:
+    df_hist["time"] = pd.to_datetime(df_hist["time"], errors="coerce")
+    df_hist = df_hist.dropna(subset=["time"]).sort_values("time")
+    
+    for col in ["livres", "ocupados", "pausa"]:
+        if col not in df_hist.columns: df_hist[col] = 0
         
-        for col in ["livres", "ocupados", "pausa"]:
-            if col not in df_hist.columns: df_hist[col] = 0
-            
-        df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
+    df_hist[["livres", "ocupados", "pausa"]] = df_hist[["livres", "ocupados", "pausa"]].fillna(0).astype(int)
 
-        series = ["livres", "ocupados"]
-        if df_hist["pausa"].sum() > 0:
-            series.append("pausa")
+    series = ["livres", "ocupados"]
+    if df_hist["pausa"].sum() > 0:
+        series.append("pausa")
 
-        df_plot = df_hist.copy()
-        for col in ["livres", "ocupados"]:
-            df_plot[col] = df_plot[col].replace(0, None)
+    df_plot = df_hist.copy()
+    for col in ["livres", "ocupados"]:
+        df_plot[col] = df_plot[col].replace(0, None)
 
-        df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
-        
-        color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
-        color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
+    df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
+    
+    color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
+    color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
 
-        chart = alt.Chart(df_melt).mark_line(point=True).encode(
-            x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
-            y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
-            color=alt.Color("Status:N", scale=color_scale),
-            tooltip=["time:T", "Status", "Quantidade"]
-        ).properties(height=320)
+    chart = alt.Chart(df_melt).mark_line(point=True).encode(
+        x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
+        y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
+        color=alt.Color("Status:N", scale=color_scale),
+        tooltip=["time:T", "Status", "Quantidade"]
+    ).properties(height=320)
 
-        st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, use_container_width=True)
 
-    # 3. STATUS DO SUPORTE (WHATSFLUX)
-    st.write("---")
-    msg_retorno, status_whats = login_e_get_status_whatsflux()
-    st.subheader("👥 Status do Suporte Técnico (WhatsFlux)")
+# 3. WHATSFLUX
+st.write("---")
+msg_retorno, status_whats = login_e_get_status_whatsflux()
+st.subheader("👥 Status do Suporte Técnico (WhatsFlux)")
 
-    if "OK" in msg_retorno:
-        colunas_tecnicos = st.columns(len(status_whats))
-        for col, (tecnico, status) in zip(colunas_tecnicos, status_whats.items()):
-            with col:
-                badge = '<span style="color: #4ade80; font-weight: bold;">🟢 ONLINE</span>' if status == "online" else '<span style="color: #f87171; font-weight: bold;">🔴 OFFLINE</span>'
+if "OK" in msg_retorno:
+    colunas_tecnicos = st.columns(len(status_whats))
+    for col, (tecnico, status) in zip(colunas_tecnicos, status_whats.items()):
+        with col:
+            badge = '<span style="color: #4ade80; font-weight: bold;">🟢 ONLINE</span>' if status == "online" else '<span style="color: #f87171; font-weight: bold;">🔴 OFFLINE</span>'
+            st.markdown(f"""
+            <div style="background-color: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: center;">
+                <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px; color: #f8fafc;">{tecnico}</div>
+                <div>{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
+else:
+    st.error(f"Erro WhatsFlux: {msg_retorno}")
+
+# 4. KANBAN (TAREFAS PENDENTES)
+st.write("---")
+col_titulo, col_audio = st.columns([3, 1])
+
+with col_titulo:
+    st.subheader("🔔 Fila de tarefa pendente - Kanban")
+
+with col_audio:
+    renderizar_botao_audio()
+
+if st.session_state.get("play_alert", False):
+    st.session_state.play_alert = False
+
+tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
+
+if tarefas_exibidas:
+    for t_id, info in list(tarefas_exibidas.items()):
+        if st.session_state.editando_id == t_id:
+            col_input, col_salvar, col_canc = st.columns([0.76, 0.12, 0.12])
+            with col_input:
+                novo_titulo = st.text_input(
+                    f"Editar Tarefa #{t_id}", 
+                    value=info['titulo'], 
+                    key=f"input_inline_{t_id}",
+                    label_visibility="collapsed"
+                )
+            with col_salvar:
+                if st.button("💾 Salvar", key=f"btn_salvar_in_{t_id}", type="primary", use_container_width=True):
+                    st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
+                    salvar_tarefas(st.session_state.tarefas_kanban)
+                    st.session_state.editando_id = None
+                    st.rerun()
+            with col_canc:
+                if st.button("❌ Cancelar", key=f"btn_canc_in_{t_id}", use_container_width=True):
+                    st.session_state.editando_id = None
+                    st.rerun()
+        else:
+            col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
+
+            with col_info:
                 st.markdown(f"""
-                <div style="background-color: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: center;">
-                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px; color: #f8fafc;">{tecnico}</div>
-                    <div>{badge}</div>
+                <div class="kanban-box">
+                    <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                        <strong>Assunto:</strong> {info['titulo']} | 
+                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                    </span>
                 </div>
                 """, unsafe_allow_html=True)
-    else:
-        st.error(f"Erro WhatsFlux: {msg_retorno}")
 
-    # 4. AVISOS DE TAREFAS (KANBAN)
-    st.write("---")
-    col_titulo, col_audio = st.columns([3, 1])
+            with col_edit:
+                if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
+                    st.session_state.editando_id = t_id
+                    st.rerun()
 
-    with col_titulo:
-        st.subheader("🔔 Fila de tarefa pendente - Kanban")
+            with col_del:
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
+                    <a href="?deletar_tarefa={t_id}" target="_self" style="
+                        text-decoration: none;
+                        font-size: 20px;
+                        cursor: pointer;
+                    " title="Excluir tarefa #{t_id} do painel">
+                        🗑️
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
+else:
+    st.info("Nenhuma tarefa pendente registrada no painel.")
 
-    with col_audio:
-        renderizar_botao_audio()
-
-    if st.session_state.get("play_alert", False):
-        st.session_state.play_alert = False
-
-    tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
-
-    # =========================================================================
-    # LISTA DE TAREFAS COM EDIÇÃO INLINE INFALÍVEL
-    # =========================================================================
-    if tarefas_exibidas:
-        for t_id, info in list(tarefas_exibidas.items()):
-            
-            # Se a tarefa atual for a selecionada para edição, mostra os campos de edição na linha
-            if st.session_state.editando_id == t_id:
-                col_input, col_salvar, col_canc = st.columns([0.76, 0.12, 0.12])
-                with col_input:
-                    novo_titulo = st.text_input(
-                        f"Editar Tarefa #{t_id}", 
-                        value=info['titulo'], 
-                        key=f"input_inline_{t_id}",
-                        label_visibility="collapsed"
-                    )
-                with col_salvar:
-                    if st.button("💾 Salvar", key=f"btn_salvar_in_{t_id}", type="primary", use_container_width=True):
-                        # 1. Salva nos dados da sessão e persiste no JSON
-                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
-                        salvar_tarefas(st.session_state.tarefas_kanban)
-                        
-                        # 2. Reseta o ID de edição (FECHA O CAMPO INSTANTANEAMENTE)
-                        st.session_state.editando_id = None
-                        st.rerun()
-                with col_canc:
-                    if st.button("❌ Cancelar", key=f"btn_canc_in_{t_id}", use_container_width=True):
-                        st.session_state.editando_id = None
-                        st.rerun()
-
-            else:
-                # Exibição Padrão da Tarefa
-                col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
-
-                # Coluna 1: Informações visuais da tarefa
-                with col_info:
-                    st.markdown(f"""
-                    <div class="kanban-box">
-                        <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                            ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                            <strong>Assunto:</strong> {info['titulo']} | 
-                            <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                        </span>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                # Coluna 2: Botão Lápis (✏️) no lado esquerdo da lixeira
-                with col_edit:
-                    if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
-                        st.session_state.editando_id = t_id
-                        st.rerun()
-
-                # Coluna 3: Botão de Exclusão (🗑️)
-                with col_del:
-                    st.markdown(f"""
-                    <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
-                        <a href="?deletar_tarefa={t_id}" target="_self" style="
-                            text-decoration: none;
-                            font-size: 20px;
-                            cursor: pointer;
-                        " title="Excluir tarefa #{t_id} do painel">
-                            🗑️
-                        </a>
-                    </div>
-                    """, unsafe_allow_html=True)
-    else:
-        st.info("Nenhuma tarefa pendente registrada no painel.")
-
-    # 5. TABELA DE AGENTES PABX
-    st.write("---")
-    st.subheader("👨‍💻 Agentes de Plantão")
-    df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
-    st.dataframe(df_agentes, use_container_width=True)
+# 5. AGENTES DE PLANTÃO
+st.write("---")
+st.subheader("👨‍💻 Agentes de Plantão")
+df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
+st.dataframe(df_agentes, use_container_width=True)
 
 # ==============================
-# AUTO ATUALIZAR CONFIGURÁVEL SEGURO
+# AUTO ATUALIZAR
 # ==============================
 time.sleep(refresh_rate)
 st.rerun()
