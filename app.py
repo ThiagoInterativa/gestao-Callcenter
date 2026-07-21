@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import unicodedata
-import altair as alt
+import altair as alt  
 import json
 import os
 
@@ -51,7 +51,7 @@ body {
     color: white;
 }
 
-/* CARD */
+/* CARD  */
 .small-card {
     padding: 26px;
     border-radius: 8px;
@@ -364,9 +364,8 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
-# Contador de versão para forçar o fechamento do Popover
-if "popover_version" not in st.session_state:
-    st.session_state.popover_version = {}
+if "editando_id" not in st.session_state:
+    st.session_state.editando_id = None
 
 if "session" not in st.session_state or not st.session_state.session:
     st.session_state.session = login()
@@ -477,7 +476,7 @@ if "OK" in msg_retorno:
 else:
     st.error(f"Erro WhatsFlux: {msg_retorno}")
 
-# 4. AVISOS DE TAREFAS (KANBAN)
+# 4. KANBAN (TAREFAS PENDENTES)
 st.write("---")
 col_titulo, col_audio = st.columns([3, 1])
 
@@ -492,62 +491,58 @@ if st.session_state.get("play_alert", False):
 
 tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
-# =========================================================================
-# LISTA DE TAREFAS - POPOVER COM FECHAMENTO AUTOMÁTICO
-# =========================================================================
 if tarefas_exibidas:
     for t_id, info in list(tarefas_exibidas.items()):
-        col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
+        if st.session_state.editando_id == t_id:
+            col_input, col_salvar, col_canc = st.columns([0.76, 0.12, 0.12])
+            with col_input:
+                novo_titulo = st.text_input(
+                    f"Editar Tarefa #{t_id}", 
+                    value=info['titulo'], 
+                    key=f"input_inline_{t_id}",
+                    label_visibility="collapsed"
+                )
+            with col_salvar:
+                if st.button("💾 Salvar", key=f"btn_salvar_in_{t_id}", type="primary", use_container_width=True):
+                    st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
+                    salvar_tarefas(st.session_state.tarefas_kanban)
+                    st.session_state.editando_id = None
+                    st.rerun()
+            with col_canc:
+                if st.button("❌ Cancelar", key=f"btn_canc_in_{t_id}", use_container_width=True):
+                    st.session_state.editando_id = None
+                    st.rerun()
+        else:
+            col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
 
-        # Coluna 1: Card Kanban
-        with col_info:
-            st.markdown(f"""
-            <div class="kanban-box">
-                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 24px;">
-                    ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                    <strong>Assunto:</strong> {info['titulo']} | 
-                    <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
+            with col_info:
+                st.markdown(f"""
+                <div class="kanban-box">
+                    <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                        <strong>Assunto:</strong> {info['titulo']} | 
+                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
 
-        # Versão do popover para controle de estado
-        v_pop = st.session_state.popover_version.get(t_id, 0)
+            with col_edit:
+                if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
+                    st.session_state.editando_id = t_id
+                    st.rerun()
 
-        # Coluna 2: Pop-up de Edição (✏️)
-        with col_edit:
-            with st.popover("✏️", help=f"Editar tarefa #{t_id}"):
-                st.markdown(f"**Editar Tarefa #{t_id}**")
-                
-                # Form com chave dinâmica para autodestruição ao salvar
-                with st.form(key=f"form_edit_{t_id}_v{v_pop}"):
-                    novo_titulo = st.text_input("Novo Assunto:", value=info['titulo'])
-                    btn_salvar = st.form_submit_button("💾 Salvar", type="primary")
-
-                    if btn_salvar:
-                        # 1. Salva nos dados
-                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
-                        salvar_tarefas(st.session_state.tarefas_kanban)
-                        
-                        # 2. Incrementa a versão (Força o fechamento do popover no próximo ciclo)
-                        st.session_state.popover_version[t_id] = v_pop + 1
-                        
-                        # 3. Recarrega a tela
-                        st.rerun()
-
-        # Coluna 3: Exclusão (🗑️)
-        with col_del:
-            st.markdown(f"""
-            <div style="display: flex; align-items: center; justify-content: center; height: 48px;">
-                <a href="?deletar_tarefa={t_id}" target="_self" style="
-                    text-decoration: none;
-                    font-size: 20px;
-                    cursor: pointer;
-                " title="Excluir tarefa #{t_id} do painel">
-                    🗑️
-                </a>
-            </div>
-            """, unsafe_allow_html=True)
+            with col_del:
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
+                    <a href="?deletar_tarefa={t_id}" target="_self" style="
+                        text-decoration: none;
+                        font-size: 20px;
+                        cursor: pointer;
+                    " title="Excluir tarefa #{t_id} do painel">
+                        🗑️
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
 else:
     st.info("Nenhuma tarefa pendente registrada no painel.")
 
