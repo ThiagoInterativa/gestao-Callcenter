@@ -135,7 +135,7 @@ def renderizar_botao_audio():
     </script>
     """
     st.components.v1.html(sound_html, height=50)
-    
+
 # ==============================
 # PERSISTÊNCIA DAS TAREFAS
 # ==============================
@@ -295,6 +295,13 @@ def login_e_get_status_whatsflux():
         return f"Erro de Conexão ({str(e)[:20]})", {}
 
 def atualizar_kanban(session_kb):
+    """
+    Função de sincronização com o Kanban:
+    - Lê as atividades recentes no site do Kanban.
+    - Se uma tarefa foi criada, adiciona ao monitoramento.
+    - Se a tarefa foi finalizada no Kanban, REMOVE do monitoramento (local e arquivo JSON).
+    - Preserva edições manuais de título feitas pelo usuário no painel.
+    """
     if not session_kb:
         return
     
@@ -325,6 +332,7 @@ def atualizar_kanban(session_kb):
             desc_div = atividade.find("div", class_="activity-description")
             titulo_tarefa = desc_div.find("p", class_="activity-task-title").get_text(strip=True) if desc_div else "Sem título"
 
+            # 1. Nova tarefa criada no Kanban
             if "criou a tarefa" in texto_acao:
                 if task_id not in tarefas_atuais:
                     tarefas_atuais[task_id] = {
@@ -335,11 +343,13 @@ def atualizar_kanban(session_kb):
                     houve_alteracao = True
                     disparar_som = True
 
+            # 2. Tarefa fechada/finalizada no Kanban -> Remove do monitoramento
             elif "finalizou a tarefa" in texto_acao:
                 if task_id in tarefas_atuais:
                     del tarefas_atuais[task_id]
                     houve_alteracao = True
 
+        # Se houve inclusão ou remoção de tarefas, persiste a alteração no arquivo
         if houve_alteracao:
             st.session_state.tarefas_kanban = tarefas_atuais
             salvar_tarefas(tarefas_atuais)
@@ -368,7 +378,7 @@ if "session_kanban" not in st.session_state or not st.session_state.session_kanb
     st.session_state.session_kanban = login_kanban()
 
 # ==============================
-# TRATAMENTO DE EXCLUSÃO (NO TOPO)
+# TRATAMENTO DE EXCLUSÃO MANUAL (VIA URL)
 # ==============================
 params = st.query_params
 if "deletar_tarefa" in params:
@@ -487,37 +497,54 @@ with conteudo_painel.container():
 
     tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
+    # =========================================================================
+    # REFORMA VISUAL DA LISTA DE TAREFAS: EDIÇÃO + EXCLUSÃO
+    # =========================================================================
     if tarefas_exibidas:
         for t_id, info in list(tarefas_exibidas.items()):
-            st.markdown(f"""
-            <div class="kanban-box" style="
-                position: relative; 
-                margin-bottom: 12px; 
-                display: flex; 
-                align-items: center; 
-                justify-content: space-between; 
-                height: 48px;
-                padding-right: 50px;
-            ">
-                <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                    ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                    <strong>Assunto:</strong> {info['titulo']} | 
-                    <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                </span>
-                <a href="?deletar_tarefa={t_id}" target="_self" style="
-                    position: absolute;
-                    right: 18px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    text-decoration: none;
-                    font-size: 18px;
-                    cursor: pointer;
-                    transition: transform 0.1s ease;
-                " title="Excluir tarefa #{t_id} do painel">
-                    🗑️
-                </a>
-            </div>
-            """, unsafe_allow_html=True)
+            # Divide a linha em: [Detalhes da Tarefa (Amplo)] | [Botão Editar] | [Botão Excluir]
+            col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
+
+            # Coluna 1: Informações da tarefa
+            with col_info:
+                st.markdown(f"""
+                <div class="kanban-box">
+                    <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                        <strong>Assunto:</strong> {info['titulo']} | 
+                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Coluna 2: Botão Editar (✏️) localizado à ESQUERDA do botão excluir
+            with col_edit:
+                # O popover cria uma janela flutuante ao clicar no lápis
+                with st.popover("✏️", help=f"Editar nome da tarefa #{t_id}"):
+                    st.markdown(f"**Editar Tarefa #{t_id}**")
+                    novo_nome = st.text_input("Novo Assunto/Nome:", value=info['titulo'], key=f"input_{t_id}")
+                    
+                    if st.button("Salvar", key=f"btn_salvar_{t_id}"):
+                        # Atualiza o título no dicionário local e grava no JSON
+                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_nome
+                        salvar_tarefas(st.session_state.tarefas_kanban)
+                        st.success("Atualizado!")
+                        st.rerun()
+
+            # Coluna 3: Botão Excluir (🗑️)
+            with col_del:
+                # Link seguro para acionar a exclusão cadastrada no topo
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: center; height: 48px;">
+                    <a href="?deletar_tarefa={t_id}" target="_self" style="
+                        text-decoration: none;
+                        font-size: 20px;
+                        cursor: pointer;
+                    " title="Excluir tarefa #{t_id} do painel">
+                        🗑️
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
     else:
         st.info("Nenhuma tarefa pendente registrada no painel.")
 
