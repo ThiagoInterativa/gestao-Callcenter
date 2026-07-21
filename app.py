@@ -296,11 +296,9 @@ def login_e_get_status_whatsflux():
 
 def atualizar_kanban(session_kb):
     """
-    Função de sincronização com o Kanban:
-    - Lê as atividades recentes no site do Kanban.
-    - Se uma tarefa foi criada, adiciona ao monitoramento.
-    - Se a tarefa foi finalizada no Kanban, REMOVE do monitoramento (local e arquivo JSON).
-    - Preserva edições manuais de título feitas pelo usuário no painel.
+    Mantém a validação das tarefas:
+    - Lê tarefas no Kanban.
+    - Se a tarefa foi finalizada no Kanban, apaga do arquivo tarefas_pendentes.json e da sessão.
     """
     if not session_kb:
         return
@@ -332,7 +330,6 @@ def atualizar_kanban(session_kb):
             desc_div = atividade.find("div", class_="activity-description")
             titulo_tarefa = desc_div.find("p", class_="activity-task-title").get_text(strip=True) if desc_div else "Sem título"
 
-            # 1. Nova tarefa criada no Kanban
             if "criou a tarefa" in texto_acao:
                 if task_id not in tarefas_atuais:
                     tarefas_atuais[task_id] = {
@@ -343,13 +340,11 @@ def atualizar_kanban(session_kb):
                     houve_alteracao = True
                     disparar_som = True
 
-            # 2. Tarefa fechada/finalizada no Kanban -> Remove do monitoramento
             elif "finalizou a tarefa" in texto_acao:
                 if task_id in tarefas_atuais:
                     del tarefas_atuais[task_id]
                     houve_alteracao = True
 
-        # Se houve inclusão ou remoção de tarefas, persiste a alteração no arquivo
         if houve_alteracao:
             st.session_state.tarefas_kanban = tarefas_atuais
             salvar_tarefas(tarefas_atuais)
@@ -371,6 +366,10 @@ if "tarefas_kanban" not in st.session_state:
 if "play_alert" not in st.session_state:
     st.session_state.play_alert = False
 
+# Controle de edições em linha (Inline)
+if "editando_id" not in st.session_state:
+    st.session_state.editando_id = None
+
 if "session" not in st.session_state or not st.session_state.session:
     st.session_state.session = login()
 
@@ -378,7 +377,7 @@ if "session_kanban" not in st.session_state or not st.session_state.session_kanb
     st.session_state.session_kanban = login_kanban()
 
 # ==============================
-# TRATAMENTO DE EXCLUSÃO MANUAL (VIA URL)
+# TRATAMENTO DE EXCLUSÃO (NO TOPO)
 # ==============================
 params = st.query_params
 if "deletar_tarefa" in params:
@@ -402,7 +401,7 @@ if not session:
 agentes = get_agentes(session)
 atualizar_kanban(session_kb)
 
-# 🟢 CONTAINER ÚNICO PRINCIPAL (Evita duplicações na tela)
+# 🟢 CONTAINER ÚNICO PRINCIPAL
 conteudo_painel = st.empty()
 
 with conteudo_painel.container():
@@ -482,7 +481,7 @@ with conteudo_painel.container():
     else:
         st.error(f"Erro WhatsFlux: {msg_retorno}")
 
-# 4. AVISOS DE TAREFAS (KANBAN)
+    # 4. AVISOS DE TAREFAS (KANBAN)
     st.write("---")
     col_titulo, col_audio = st.columns([3, 1])
 
@@ -498,86 +497,74 @@ with conteudo_painel.container():
     tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
     # =========================================================================
-    # GERENCIADOR DE ESTADO PARA FECHAMENTO DE MODAL
-    # =========================================================================
-    if "tarefa_em_edicao" not in st.session_state:
-        st.session_state.tarefa_em_edicao = None
-
-    # Função Modal que salva e RESETA o estado de edição para fechar a janela
-    @st.dialog("✏️ Editar Tarefa")
-    def modal_editar_tarefa(t_id, titulo_atual):
-        st.write(f"**Alterar assunto da Tarefa #{t_id}**")
-        
-        # Campo de texto fora de st.form para evitar retenção de submit
-        novo_nome = st.text_input("Novo Assunto/Nome:", value=titulo_atual, key=f"txt_edit_{t_id}")
-        
-        col_s1, col_s2 = st.columns([1, 1])
-        with col_s1:
-            if st.button("💾 Salvar Alteração", key=f"btn_save_mod_{t_id}", type="primary"):
-                # 1. Salva nos dados da sessão e grava no arquivo JSON
-                st.session_state.tarefas_kanban[t_id]["titulo"] = novo_nome
-                salvar_tarefas(st.session_state.tarefas_kanban)
-                
-                # 2. LIMPA O ESTADO DA MODAL (Instrução para fechar)
-                st.session_state.tarefa_em_edicao = None
-                
-                # 3. Recarrega a aplicação sem nenhuma modal ativa
-                st.rerun()
-
-        with col_s2:
-            if st.button("❌ Cancelar", key=f"btn_canc_mod_{t_id}"):
-                st.session_state.tarefa_em_edicao = None
-                st.rerun()
-
-    # Se houver alguma tarefa marcada para edição, exibe o dialog
-    if st.session_state.tarefa_em_edicao:
-        t_id_edit = st.session_state.tarefa_em_edicao
-        if t_id_edit in tarefas_exibidas:
-            modal_editar_tarefa(t_id_edit, tarefas_exibidas[t_id_edit]["titulo"])
-
-    # =========================================================================
-    # RENDERIZAÇÃO DA LISTA DE TAREFAS
+    # LISTA DE TAREFAS COM EDIÇÃO INLINE INFALÍVEL
     # =========================================================================
     if tarefas_exibidas:
         for t_id, info in list(tarefas_exibidas.items()):
-            col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
+            
+            # Se a tarefa atual for a selecionada para edição, mostra os campos de edição na linha
+            if st.session_state.editando_id == t_id:
+                col_input, col_salvar, col_canc = st.columns([0.76, 0.12, 0.12])
+                with col_input:
+                    novo_titulo = st.text_input(
+                        f"Editar Tarefa #{t_id}", 
+                        value=info['titulo'], 
+                        key=f"input_inline_{t_id}",
+                        label_visibility="collapsed"
+                    )
+                with col_salvar:
+                    if st.button("💾 Salvar", key=f"btn_salvar_in_{t_id}", type="primary", use_container_width=True):
+                        # 1. Salva nos dados da sessão e persiste no JSON
+                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
+                        salvar_tarefas(st.session_state.tarefas_kanban)
+                        
+                        # 2. Reseta o ID de edição (FECHA O CAMPO INSTANTANEAMENTE)
+                        st.session_state.editando_id = None
+                        st.rerun()
+                with col_canc:
+                    if st.button("❌ Cancelar", key=f"btn_canc_in_{t_id}", use_container_width=True):
+                        st.session_state.editando_id = None
+                        st.rerun()
 
-            # Coluna 1: Informações visuais da tarefa
-            with col_info:
-                st.markdown(f"""
-                <div class="kanban-box">
-                    <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                        <strong>Assunto:</strong> {info['titulo']} | 
-                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                    </span>
-                </div>
-                """, unsafe_allow_html=True)
+            else:
+                # Exibição Padrão da Tarefa
+                col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
 
-            # Coluna 2: Botão de Lápis (✏️) no lado esquerdo da lixeira
-            with col_edit:
-                if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
-                    # Seta qual tarefa será editada e recarrega para abrir a modal limpa
-                    st.session_state.tarefa_em_edicao = t_id
-                    st.rerun()
+                # Coluna 1: Informações visuais da tarefa
+                with col_info:
+                    st.markdown(f"""
+                    <div class="kanban-box">
+                        <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                            <strong>Assunto:</strong> {info['titulo']} | 
+                            <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-            # Coluna 3: Botão de Exclusão (🗑️)
-            with col_del:
-                st.markdown(f"""
-                <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
-                    <a href="?deletar_tarefa={t_id}" target="_self" style="
-                        text-decoration: none;
-                        font-size: 20px;
-                        cursor: pointer;
-                    " title="Excluir tarefa #{t_id} do painel">
-                        🗑️
-                    </a>
-                </div>
-                """, unsafe_allow_html=True)
+                # Coluna 2: Botão Lápis (✏️) no lado esquerdo da lixeira
+                with col_edit:
+                    if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
+                        st.session_state.editando_id = t_id
+                        st.rerun()
+
+                # Coluna 3: Botão de Exclusão (🗑️)
+                with col_del:
+                    st.markdown(f"""
+                    <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
+                        <a href="?deletar_tarefa={t_id}" target="_self" style="
+                            text-decoration: none;
+                            font-size: 20px;
+                            cursor: pointer;
+                        " title="Excluir tarefa #{t_id} do painel">
+                            🗑️
+                        </a>
+                    </div>
+                    """, unsafe_allow_html=True)
     else:
         st.info("Nenhuma tarefa pendente registrada no painel.")
-    
-        # 5. TABELA DE AGENTES PABX
+
+    # 5. TABELA DE AGENTES PABX
     st.write("---")
     st.subheader("👨‍💻 Agentes de Plantão")
     df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
