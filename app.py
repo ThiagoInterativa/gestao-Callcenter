@@ -481,6 +481,7 @@ with conteudo_painel.container():
                 """, unsafe_allow_html=True)
     else:
         st.error(f"Erro WhatsFlux: {msg_retorno}")
+
 # 4. AVISOS DE TAREFAS (KANBAN)
     st.write("---")
     col_titulo, col_audio = st.columns([3, 1])
@@ -497,28 +498,42 @@ with conteudo_painel.container():
     tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
     # =========================================================================
-    # DIALOG DE EDIÇÃO (FECHA AUTOMATICAMENTE APÓS SALVAR)
+    # GERENCIADOR DE ESTADO PARA FECHAMENTO DE MODAL
     # =========================================================================
+    if "tarefa_em_edicao" not in st.session_state:
+        st.session_state.tarefa_em_edicao = None
+
+    # Função Modal que salva e RESETA o estado de edição para fechar a janela
     @st.dialog("✏️ Editar Tarefa")
     def modal_editar_tarefa(t_id, titulo_atual):
-        """
-        Modal nativo que permite alterar o nome da tarefa e fecha 
-        imediatamente ao submeter o formulário com st.rerun().
-        """
         st.write(f"**Alterar assunto da Tarefa #{t_id}**")
-        with st.form(key=f"form_modal_{t_id}"):
-            novo_nome = st.text_input("Novo Assunto/Nome:", value=titulo_atual)
-            btn_salvar = st.form_submit_button("💾 Salvar Alteração")
-            
-            if btn_salvar:
-                # 1. Atualiza no estado da sessão
+        
+        # Campo de texto fora de st.form para evitar retenção de submit
+        novo_nome = st.text_input("Novo Assunto/Nome:", value=titulo_atual, key=f"txt_edit_{t_id}")
+        
+        col_s1, col_s2 = st.columns([1, 1])
+        with col_s1:
+            if st.button("💾 Salvar Alteração", key=f"btn_save_mod_{t_id}", type="primary"):
+                # 1. Salva nos dados da sessão e grava no arquivo JSON
                 st.session_state.tarefas_kanban[t_id]["titulo"] = novo_nome
-                
-                # 2. Salva no arquivo JSON para manter a persistência
                 salvar_tarefas(st.session_state.tarefas_kanban)
                 
-                # 3. Força a re-renderização (fechando o dialog instantaneamente)
+                # 2. LIMPA O ESTADO DA MODAL (Instrução para fechar)
+                st.session_state.tarefa_em_edicao = None
+                
+                # 3. Recarrega a aplicação sem nenhuma modal ativa
                 st.rerun()
+
+        with col_s2:
+            if st.button("❌ Cancelar", key=f"btn_canc_mod_{t_id}"):
+                st.session_state.tarefa_em_edicao = None
+                st.rerun()
+
+    # Se houver alguma tarefa marcada para edição, exibe o dialog
+    if st.session_state.tarefa_em_edicao:
+        t_id_edit = st.session_state.tarefa_em_edicao
+        if t_id_edit in tarefas_exibidas:
+            modal_editar_tarefa(t_id_edit, tarefas_exibidas[t_id_edit]["titulo"])
 
     # =========================================================================
     # RENDERIZAÇÃO DA LISTA DE TAREFAS
@@ -542,7 +557,9 @@ with conteudo_painel.container():
             # Coluna 2: Botão de Lápis (✏️) no lado esquerdo da lixeira
             with col_edit:
                 if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
-                    modal_editar_tarefa(t_id, info['titulo'])
+                    # Seta qual tarefa será editada e recarrega para abrir a modal limpa
+                    st.session_state.tarefa_em_edicao = t_id
+                    st.rerun()
 
             # Coluna 3: Botão de Exclusão (🗑️)
             with col_del:
@@ -559,8 +576,8 @@ with conteudo_painel.container():
                 """, unsafe_allow_html=True)
     else:
         st.info("Nenhuma tarefa pendente registrada no painel.")
-
-    # 5. TABELA DE AGENTES PABX
+    
+        # 5. TABELA DE AGENTES PABX
     st.write("---")
     st.subheader("👨‍💻 Agentes de Plantão")
     df_agentes = pd.DataFrame(agentes, columns=["Nome", "Status"])
