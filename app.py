@@ -476,75 +476,95 @@ if "OK" in msg_retorno:
 else:
     st.error(f"Erro WhatsFlux: {msg_retorno}")
 
-# 4. KANBAN (TAREFAS PENDENTES)
-st.write("---")
-col_titulo, col_audio = st.columns([3, 1])
+# 4. AVISOS DE TAREFAS (KANBAN)
+    st.write("---")
+    col_titulo, col_audio = st.columns([3, 1])
 
-with col_titulo:
-    st.subheader("🔔 Fila de tarefa pendente - Kanban")
+    with col_titulo:
+        st.subheader("🔔 Fila de tarefa pendente - Kanban")
 
-with col_audio:
-    renderizar_botao_audio()
+    with col_audio:
+        renderizar_botao_audio()
 
-if st.session_state.get("play_alert", False):
-    st.session_state.play_alert = False
+    if st.session_state.get("play_alert", False):
+        st.session_state.play_alert = False
 
-tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
+    tarefas_exibidas = st.session_state.get("tarefas_kanban", {})
 
-if tarefas_exibidas:
-    for t_id, info in list(tarefas_exibidas.items()):
-        if st.session_state.editando_id == t_id:
-            col_input, col_salvar, col_canc = st.columns([0.76, 0.12, 0.12])
-            with col_input:
-                novo_titulo = st.text_input(
-                    f"Editar Tarefa #{t_id}", 
-                    value=info['titulo'], 
-                    key=f"input_inline_{t_id}",
-                    label_visibility="collapsed"
-                )
-            with col_salvar:
-                if st.button("💾 Salvar", key=f"btn_salvar_in_{t_id}", type="primary", use_container_width=True):
-                    st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
-                    salvar_tarefas(st.session_state.tarefas_kanban)
-                    st.session_state.editando_id = None
-                    st.rerun()
-            with col_canc:
-                if st.button("❌ Cancelar", key=f"btn_canc_in_{t_id}", use_container_width=True):
-                    st.session_state.editando_id = None
-                    st.rerun()
-        else:
-            col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
-
-            with col_info:
+    # =========================================================================
+    # LISTA DE TAREFAS (LAYOUT UNIFICADO COM MESMA COR DE FUNDO)
+    # =========================================================================
+    if tarefas_exibidas:
+        for t_id, info in list(tarefas_exibidas.items()):
+            
+            # MODO DE EDIÇÃO INLINE (Dentro do Card)
+            if st.session_state.editando_id == t_id:
                 st.markdown(f"""
-                <div class="kanban-box">
-                    <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
-                        <strong>Assunto:</strong> {info['titulo']} | 
-                        <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
-                    </span>
-                </div>
+                <div class="kanban-box" style="padding: 8px 12px;">
                 """, unsafe_allow_html=True)
+                
+                col_in_txt, col_in_salvar, col_in_canc = st.columns([0.74, 0.13, 0.13])
+                with col_in_txt:
+                    novo_titulo = st.text_input(
+                        f"Editar Tarefa #{t_id}", 
+                        value=info['titulo'], 
+                        key=f"input_inline_{t_id}",
+                        label_visibility="collapsed"
+                    )
+                with col_in_salvar:
+                    if st.button("💾 Salvar", key=f"btn_salvar_in_{t_id}", type="primary", use_container_width=True):
+                        st.session_state.tarefas_kanban[t_id]["titulo"] = novo_titulo
+                        salvar_tarefas(st.session_state.tarefas_kanban)
+                        st.session_state.editando_id = None
+                        st.rerun()
+                with col_in_canc:
+                    if st.button("❌ Cancelar", key=f"btn_canc_in_{t_id}", use_container_width=True):
+                        st.session_state.editando_id = None
+                        st.rerun()
+                
+                st.markdown("</div>", unsafe_allow_html=True)
 
-            with col_edit:
-                if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
-                    st.session_state.editando_id = t_id
-                    st.rerun()
+            # MODO EXIBIÇÃO PADRÃO (Card Unificado com Botões Embutidos)
+            else:
+                col_info, col_edit, col_del = st.columns([0.88, 0.06, 0.06])
 
-            with col_del:
-                st.markdown(f"""
-                <div style="display: flex; align-items: center; justify-content: center; height: 38px;">
-                    <a href="?deletar_tarefa={t_id}" target="_self" style="
-                        text-decoration: none;
-                        font-size: 20px;
-                        cursor: pointer;
-                    " title="Excluir tarefa #{t_id} do painel">
-                        🗑️
-                    </a>
-                </div>
-                """, unsafe_allow_html=True)
-else:
-    st.info("Nenhuma tarefa pendente registrada no painel.")
+                with col_info:
+                    st.markdown(f"""
+                    <div class="kanban-box" style="margin-bottom: 0px; border-top-right-radius: 0; border-bottom-right-radius: 0;">
+                        <span style="font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 24px;">
+                            ⚠️ <strong>Tarefa #{t_id}</strong> Criada {info['data_criacao']} | 
+                            <strong>Assunto:</strong> {info['titulo']} | 
+                            <span style="color:#f59e0b; font-weight:bold;">Status: {info['status']}</span>
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_edit:
+                    st.markdown("""
+                    <div style="background-color: #1e293b; padding: 4px; display: flex; align-items: center; justify-content: center; height: 100%;">
+                    """, unsafe_allow_html=True)
+                    if st.button("✏️", key=f"btn_open_edit_{t_id}", help=f"Editar tarefa #{t_id}"):
+                        st.session_state.editando_id = t_id
+                        st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                with col_del:
+                    st.markdown(f"""
+                    <div style="background-color: #1e293b; padding: 4px; border-top-right-radius: 6px; border-bottom-right-radius: 6px; display: flex; align-items: center; justify-content: center; height: 100%;">
+                        <a href="?deletar_tarefa={t_id}" target="_self" style="
+                            text-decoration: none;
+                            font-size: 18px;
+                            cursor: pointer;
+                        " title="Excluir tarefa #{t_id} do painel">
+                            🗑️
+                        </a>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Espaçamento inferior entre cada card
+                st.write("")
+    else:
+        st.info("Nenhuma tarefa pendente registrada no painel.")
 
 # 5. AGENTES DE PLANTÃO
 st.write("---")
