@@ -435,7 +435,7 @@ atualizar_kanban(session_kb)
 # ==============================
 # RENDERIZAÇÃO DA PÁGINA
 # ==============================
-st.markdown('<div class="title">📡 Gestor de Helpdesl - Intercom</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">📡 Gestor de ServiceDesk - Intercom</div>', unsafe_allow_html=True)
 
 # Métricas
 livres = sum(1 for _, s in agentes if s == "livre")
