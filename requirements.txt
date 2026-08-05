@@ -1,7 +1,5 @@
 streamlit==1.45.1
 altair==5.5.0
-starlette<1.0
-uvicorn<0.35
-pandas
-numpy
-pyarrow<25
+pandas==2.2.3
+numpy==2.2.3
+pyarrow==24.0.0
