@@ -479,16 +479,7 @@ if not df_hist.empty:
 
     df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
     
-    color_map = {"livres": "#22c55e", "ocupados": "#ef4444", "pausa": "#eab308"}
-    color_scale = alt.Scale(domain=list(color_map.keys()), range=list(color_map.values()))
-
-    chart = alt.Chart(df_melt).mark_line(point=True).encode(
-        x=alt.X("time:T", axis=alt.Axis(format="%H:%M"), title="Horário (Brasil)"),
-        y=alt.Y("Quantidade:Q", scale=alt.Scale(domain=[0, 9]), axis=alt.Axis(tickMinStep=1)),
-        color=alt.Color("Status:N", scale=color_scale),
-        tooltip=["time:T", "Status", "Quantidade"]
-    ).properties(height=320)
-
+    
     st.line_chart(
         df_hist.set_index("time")[["livres", "ocupados", "pausa"]]
     )
