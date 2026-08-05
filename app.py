@@ -479,10 +479,58 @@ if not df_hist.empty:
 
     df_melt = df_plot.melt(id_vars=["time"], value_vars=series, var_name="Status", value_name="Quantidade")
     
-    
-    st.line_chart(
-        df_hist.set_index("time")[["livres", "ocupados", "pausa"]]
-    )
+    # GRÁFICO COM CORES DE STATUS
+grafico = df_hist.set_index("time")[["livres", "ocupados", "pausa"]]
+
+grafico_melt = grafico.reset_index().melt(
+    id_vars=["time"],
+    var_name="Status",
+    value_name="Quantidade"
+)
+
+cores_status = {
+    "livres": "#16a34a",     # Verde
+    "ocupados": "#dc2626",   # Vermelho
+    "pausa": "#eab308"       # Amarelo
+}
+
+chart = {
+    "data": grafico_melt,
+    "mark": "line",
+    "encoding": {
+        "x": {
+            "field": "time",
+            "type": "temporal",
+            "title": "Horário"
+        },
+        "y": {
+            "field": "Quantidade",
+            "type": "quantitative",
+            "title": "Quantidade"
+        },
+        "color": {
+            "field": "Status",
+            "type": "nominal",
+            "scale": {
+                "domain": ["livres", "ocupados", "pausa"],
+                "range": [
+                    "#16a34a",
+                    "#dc2626",
+                    "#eab308"
+                ]
+            },
+            "legend": {
+                "title": "Status"
+            }
+        }
+    }
+}
+
+st.vega_lite_chart(
+    grafico_melt,
+    chart,
+    use_container_width=True
+)
 
 # 3. WHATSFLUX
 st.write("---")
