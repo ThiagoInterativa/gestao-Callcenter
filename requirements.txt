@@ -1,5 +1,7 @@
 streamlit==1.45.1
 altair==5.5.0
+narwhals==1.25.0
+typing_extensions>=4.12.0
 requests
 beautifulsoup4
 pandas
