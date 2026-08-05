@@ -1,6 +1,5 @@
 streamlit==1.45.1
 starlette==0.46.2
-altair==5.4.1
 requests
 beautifulsoup4
 pandas
