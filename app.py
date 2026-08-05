@@ -6,7 +6,6 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import unicodedata
-import altair as alt  
 import json
 import os
 
