@@ -10,10 +10,11 @@ import altair as alt
 import json
 import os
 
+st.set_page_config(layout="wide")
+
 # ==============================
 # CONFIG
 # ==============================
-st.set_page_config(layout="wide", page_title="NOC Call Center")
 
 LOGIN_URL = "https://pabx.evence.com.br/login"
 MONITOR_URL = "https://pabx.evence.com.br/callcenter/monitoramentoAgentes/detalhes?agentes=46,47,49,50,52,53"
