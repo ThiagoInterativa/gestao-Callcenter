@@ -490,7 +490,9 @@ if not df_hist.empty:
         tooltip=["time:T", "Status", "Quantidade"]
     ).properties(height=320)
 
-    st.altair_chart(chart, use_container_width=True)
+    st.line_chart(
+        df_hist.set_index("time")[["livres", "ocupados", "pausa"]]
+    )
 
 # 3. WHATSFLUX
 st.write("---")
